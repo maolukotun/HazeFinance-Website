@@ -1,0 +1,324 @@
+<div class="docs">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sb-head">
+    <a href="/"><img src="/logo.png" alt="Haze" style="height:24px;width:auto;opacity:0.9"></a>
+    <span>Haze</span>
+    <small>Docs</small>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">Getting started</div>
+    <a class="sb-link active" href="#overview">Overview</a>
+    <a class="sb-link" href="#how-it-works">How it works</a>
+    <a class="sb-link" href="#quickstart">Quickstart</a>
+
+    <div class="sb-section">Core concepts</div>
+    <a class="sb-link" href="#fingerprint">Behavioral fingerprint</a>
+    <a class="sb-link" href="#privacy">Privacy model</a>
+    <a class="sb-link" href="#data-controls">Data controls</a>
+    <a class="sb-link" href="#earnings">Earnings &amp; revenue</a>
+
+    <div class="sb-section">Technical</div>
+    <a class="sb-link" href="#architecture">Architecture</a>
+    <a class="sb-link" href="#x402">x402 &amp; Meridian</a>
+    <a class="sb-link" href="#zk">ZK proof layer</a>
+
+
+    <div class="sb-section">Resources</div>
+    <a class="sb-link" href="#token">Token model</a>
+    <a class="sb-link" href="#faq">FAQ</a>
+  </nav>
+  <div class="sb-foot">&copy; 2026 Haze</div>
+</aside>
+
+<!-- MOBILE -->
+<div class="mob-ov" id="mOv"></div>
+<div class="mob-side" id="mSide">
+  <div class="mob-close"><button id="mClose"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+  <nav class="sb-nav" id="mNav">
+    <div class="sb-section">Getting started</div>
+    <a class="sb-link" href="#overview">Overview</a>
+    <a class="sb-link" href="#how-it-works">How it works</a>
+    <a class="sb-link" href="#quickstart">Quickstart</a>
+    <div class="sb-section">Core concepts</div>
+    <a class="sb-link" href="#fingerprint">Behavioral fingerprint</a>
+    <a class="sb-link" href="#privacy">Privacy model</a>
+    <a class="sb-link" href="#data-controls">Data controls</a>
+    <a class="sb-link" href="#earnings">Earnings &amp; revenue</a>
+    <div class="sb-section">Technical</div>
+    <a class="sb-link" href="#architecture">Architecture</a>
+    <a class="sb-link" href="#x402">x402 &amp; Meridian</a>
+    <a class="sb-link" href="#zk">ZK proof layer</a>
+    <div class="sb-section">Resources</div>
+    <a class="sb-link" href="#token">Token model</a>
+    <a class="sb-link" href="#faq">FAQ</a>
+  </nav>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <a href="/"><img src="/logo.png" alt="Haze" style="height:20px;width:auto;opacity:0.9"></a>
+      <span>Docs</span>
+    </div>
+    <button class="topbar-menu" id="menuBtn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <h1 class="doc-h1" id="overview">Haze Documentation</h1>
+    <p class="doc-subtitle">The behavioral data protocol on Robinhood Chain. Earn passive USDG from onchain data you're already creating.</p>
+
+    <p>Haze is a protocol that lets wallet owners monetize their anonymized onchain behavioral data by selling it to AI agents via x402 micropayments. Analytics firms like Nansen, Arkham, and Dune already scrape wallet data and sell it for hundreds of dollars a month. The wallet owner gets nothing. Haze reverses that flow.</p>
+
+    <p>You connect your Robinhood Chain wallet. Haze indexes your public transaction history, computes an anonymized behavioral fingerprint, and serves it to AI agents who pay per query. You keep 80% of every payment. No uploads, no configuration, no ongoing effort.</p>
+
+    <div class="callout info">
+      <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <p><strong>Robinhood Chain advantage:</strong> Haze is the only behavioral data protocol with access to cross-asset equity + crypto trading data. This dataset does not exist on any other chain because no other chain has tokenized stock trading alongside DeFi.</p>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <h2 class="doc-h2" id="how-it-works">How it works</h2>
+    <p>The Haze pipeline has five stages. The entire setup takes approximately 30 seconds. After that, the protocol operates autonomously with zero user input.</p>
+
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num">1</div><h4>Connect</h4><p>Link your Robinhood Chain wallet via standard wallet connect. No special permissions required.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-num">2</div><h4>Index</h4><p>Haze reads your public onchain history via RPC. DeFi interactions and stock trades are both processed.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-num">3</div><h4>Compute</h4><p>Behavioral fingerprint is generated from your activity patterns. Updated daily.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-num">4</div><h4>Anonymize</h4><p>Wallet address stripped. Random ID assigned. No PII in the profile.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-num">5</div><h4>Earn</h4><p>AI agents query your profile via x402. You receive 80% of each payment.</p></div>
+    </div>
+
+    <p>Blockchain data is already public. Haze does not access anything that isn't already visible to anyone running a block explorer. The value-add is the behavioral computation layer and the monetization infrastructure.</p>
+
+    <!-- QUICKSTART -->
+    <h2 class="doc-h2" id="quickstart">Quickstart</h2>
+
+    <div style="position:relative;border-radius:12px;overflow:hidden;margin-bottom:32px">
+      <div style="filter:blur(6px);opacity:0.35;pointer-events:none;user-select:none;padding:20px 0">
+        <h3 class="doc-h3">For wallet owners (data sellers)</h3>
+        <ol>
+          <li>Connect your Robinhood Chain wallet</li>
+          <li>Review the data categories you want to share</li>
+          <li>Confirm with a single wallet signature</li>
+          <li>Your profile begins indexing immediately</li>
+        </ol>
+        <h3 class="doc-h3">For AI agents (data buyers)</h3>
+        <p>Queries are authenticated and paid via x402 micropayments.</p>
+        <div class="code-label">Example query</div>
+        <pre><code>curl -X POST https://api.haze.com/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{ "filters": { ... } }'</code></pre>
+      </div>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+        <div style="background:rgba(152,96,222,0.1);border:1px solid rgba(152,96,222,0.2);border-radius:10px;padding:14px 28px;backdrop-filter:blur(4px)">
+          <span style="color:rgba(192,160,240,0.8);font-size:14px;font-weight:600;letter-spacing:0.04em">COMING SOON</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FINGERPRINT -->
+    <h2 class="doc-h2" id="fingerprint">Behavioral fingerprint</h2>
+    <p>The fingerprint is an anonymized behavioral profile computed from a wallet's full onchain history on Robinhood Chain. It contains no raw transactions, no wallet addresses, and no personally identifiable information. Only computed behavioral patterns.</p>
+
+    <table class="doc-table">
+      <thead><tr><th>Dimension</th><th>What it captures</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td><code>trader_type</code></td><td>Day trader, swing trader, holder, farmer, or passive</td><td>Trade frequency, hold duration</td></tr>
+        <tr><td><code>asset_allocation</code></td><td>Equity-heavy, crypto-heavy, balanced, or rotational</td><td>Portfolio composition over time</td></tr>
+        <tr><td><code>risk_profile</code></td><td>Conservative, moderate, or aggressive</td><td>Position sizing, Morpho leverage, liquidation history</td></tr>
+        <tr><td><code>defi_patterns</code></td><td>Protocol usage, LP behavior, lending patterns</td><td>Uniswap, Morpho interactions</td></tr>
+        <tr><td><code>equity_behavior</code></td><td>Sector preferences, earnings reaction, hold duration</td><td>Tokenized stock trades</td></tr>
+        <tr><td><code>reactivity</code></td><td>Response speed to market moves</td><td>Time delta between price event and trade</td></tr>
+        <tr><td><code>cross_asset_rotation</code></td><td>Capital flow patterns between stocks and crypto</td><td>Sequential trade analysis</td></tr>
+        <tr><td><code>spending_rhythm</code></td><td>Peak hours, weekday vs weekend, volume patterns</td><td>Transaction timestamps</td></tr>
+        <tr><td><code>wallet_maturity</code></td><td>Age, total tx count, consistency</td><td>Historical activity</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout success">
+      <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      <p><strong>Cross-asset premium:</strong> Profiles that include both equity and crypto behavioral data command 2-3x higher per-query prices because the signal is rarer and more valuable to agents. This data exists nowhere else.</p>
+    </div>
+
+    <p>Fingerprints are recomputed daily as new transactions come in. Profile accuracy and value increase over time as more behavioral data is accumulated.</p>
+
+    <!-- PRIVACY -->
+    <h2 class="doc-h2" id="privacy">Privacy model</h2>
+    <p>Privacy is the foundation of Haze, not a feature. The protocol is designed so that data buyers <strong>never learn who the wallet owner is</strong>.</p>
+
+    <h3 class="doc-h3">Guarantees</h3>
+    <ul>
+      <li><strong>No wallet addresses</strong> are ever exposed to buyers. Profiles use random identifiers only.</li>
+      <li><strong>No raw transactions</strong> — no hashes, no counterparty addresses, no specific stock positions, no exact amounts. Only computed behavioral patterns.</li>
+      <li><strong>User-controlled sharing</strong> — toggle individual data categories on or off at any time. Exclude stock data entirely if desired.</li>
+      <li><strong>Cohort responses</strong> — queries return batches of anonymized profiles by default (50-500 per query), not individual users.</li>
+      <li><strong>ZK verification</strong> — optional zero-knowledge proof layer lets buyers verify a profile represents a real wallet with real volume, without revealing which wallet.</li>
+      <li><strong>Instant deletion</strong> — delete your profile and all associated data at any time. One tap. Permanent and irreversible.</li>
+    </ul>
+
+    <div class="callout warn">
+      <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <p><strong>Important:</strong> Haze reads publicly available blockchain data. It does not access private keys, seed phrases, or off-chain data of any kind. The wallet signature during setup authorizes profile creation only — it grants no spending or transfer permissions.</p>
+    </div>
+
+    <!-- DATA CONTROLS -->
+    <h2 class="doc-h2" id="data-controls">Data controls</h2>
+    <p>Users have granular control over what behavioral data their profile includes. Each dimension can be toggled independently from the dashboard.</p>
+
+    <table class="doc-table">
+      <thead><tr><th>Control</th><th>What it includes</th><th>Default</th></tr></thead>
+      <tbody>
+        <tr><td><code>trading_behavior</code></td><td>Swap frequency, hold duration, pair preferences</td><td>Enabled</td></tr>
+        <tr><td><code>risk_profile</code></td><td>Position sizing, leverage usage, liquidation history</td><td>Enabled</td></tr>
+        <tr><td><code>defi_activity</code></td><td>Uniswap, Morpho usage, LP positions</td><td>Enabled</td></tr>
+        <tr><td><code>equity_behavior</code></td><td>Stock trading patterns, sector preferences</td><td>Enabled</td></tr>
+        <tr><td><code>timing_patterns</code></td><td>Peak hours, weekday/weekend rhythms</td><td>Enabled</td></tr>
+        <tr><td><code>cross_asset</code></td><td>Capital flows between stocks and crypto</td><td>Enabled</td></tr>
+      </tbody>
+    </table>
+
+    <p>Disabling a data category removes that dimension from your fingerprint. Queries that require that dimension will no longer match your profile. This may reduce your earning rate but gives you full control over your data exposure.</p>
+
+    <!-- EARNINGS -->
+    <h2 class="doc-h2" id="earnings">Earnings &amp; revenue</h2>
+
+    <h3 class="doc-h3">Revenue split</h3>
+    <p>Every x402 payment from an AI agent is split <strong>80/20</strong>:</p>
+    <ul>
+      <li><strong>80%</strong> goes to the wallet owners whose profiles were included in the query response</li>
+      <li><strong>20%</strong> goes to $HAZE buyback and burns</li>
+    </ul>
+
+    <h3 class="doc-h3">Query pricing</h3>
+    <table class="doc-table">
+      <thead><tr><th>Query type</th><th>Price range</th><th>Profiles returned</th></tr></thead>
+      <tbody>
+        <tr><td>Standard cohort</td><td><code>$0.01 - $0.03</code></td><td>Up to 100 profiles</td></tr>
+        <tr><td>Premium (cross-asset)</td><td><code>$0.02 - $0.05</code></td><td>Up to 100 profiles</td></tr>
+        <tr><td>Bulk batch</td><td><code>$0.005/profile</code></td><td>100 - 1,000 profiles</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="doc-h3">Withdrawal</h3>
+    <p>Earnings accumulate in your Haze balance denominated in USDG. Withdraw to your connected wallet at any time. Settlement is gasless — the protocol covers withdrawal gas fees.</p>
+
+    <!-- ARCHITECTURE -->
+    <h2 class="doc-h2" id="architecture">Architecture</h2>
+
+    <h3 class="doc-h3">Layer 1: Indexer</h3>
+    <p>Reads wallet transaction history from Robinhood Chain via RPC and indexer APIs. Processes both DeFi interactions (Uniswap swaps, Morpho deposits/borrows) and tokenized stock trades. Computes behavioral metrics including trading frequency, hold duration, cross-asset rotation patterns, risk behavior, volume, and equity sector preferences. Recomputes daily. All computation runs off-chain.</p>
+
+    <h3 class="doc-h3">Layer 2: Privacy layer</h3>
+    <p>Strips wallet addresses and all identifying information. Assigns random profile IDs. Runs an optional ZK proof circuit that proves a profile represents a real wallet exceeding volume and transaction count thresholds without revealing which wallet. User-controlled data sharing toggles are enforced at this layer.</p>
+
+    <h3 class="doc-h3">Layer 3: x402 data oracle</h3>
+    <p>HTTP API that receives queries from AI agents. Applies filters (trader type, volume range, protocol usage, risk profile). Returns matching anonymized profiles as JSON. Each query triggers an x402 micropayment settled via Meridian in USDG on Robinhood Chain. Handles revenue distribution: 80% to profile owners, 20% to protocol.</p>
+
+    <h3 class="doc-h3">Layer 4: Earnings engine</h3>
+    <p>Tracks which profiles were included in each query response. Accumulates micro-earnings per user in real time. Processes withdrawals gaslessly. Dashboard serves real-time earning ticker, historical totals, and query analytics.</p>
+
+    <div class="code-label">Architecture diagram</div>
+    <pre><code>┌─────────────┐     ┌──────────────┐     ┌────────────────┐
+│  User wallet │────▶│   Indexer    │────▶│ Privacy layer  │
+│  (RH Chain)  │     │  (off-chain) │     │ (anonymize +   │
+└─────────────┘     └──────────────┘     │  ZK optional)  │
+                                          └───────┬────────┘
+                                                  │
+                                          ┌───────▼────────┐
+┌─────────────┐     ┌──────────────┐     │  x402 Oracle   │
+│  AI Agent   │────▶│   Meridian   │────▶│  (query API)   │
+│  (buyer)    │◀────│  (settlement)│◀────│                │
+└─────────────┘     └──────────────┘     └───────┬────────┘
+                                                  │
+                                          ┌───────▼────────┐
+                                          │ Earnings engine│
+                                          │ (track + pay)  │
+                                          └────────────────┘</code></pre>
+
+    <!-- x402 -->
+    <h2 class="doc-h2" id="x402">x402 &amp; Meridian settlement</h2>
+    <p>Haze uses the <strong>x402 payment protocol</strong> for all agent-to-protocol micropayments. x402 embeds payment directly into HTTP requests — no accounts, no API keys, no subscriptions. Agents pay per query at the moment of request.</p>
+
+    <h3 class="doc-h3">How x402 works in Haze</h3>
+    <ol>
+      <li>AI agent sends a query to <code>api.haze.com/v1/query</code></li>
+      <li>Server returns <code>HTTP 402 Payment Required</code> with pricing in the response header</li>
+      <li>Agent constructs an x402 payment using USDG on Robinhood Chain</li>
+      <li>Agent re-sends the query with the <code>X-402-Payment</code> header</li>
+      <li>Haze verifies payment via Meridian facilitator (~200ms settlement)</li>
+      <li>Query results are returned. Revenue is split and credited to profile owners.</li>
+    </ol>
+
+    <div class="callout info">
+      <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <p><strong>Meridian</strong> is the x402 payment facilitator integrated on Robinhood Chain's network infrastructure. It handles payment verification, settlement, and revenue distribution in a single atomic operation.</p>
+    </div>
+
+    <!-- ZK -->
+    <h2 class="doc-h2" id="zk">ZK proof layer</h2>
+    <p>The optional zero-knowledge proof layer allows data buyers to verify profile authenticity without learning the wallet's identity.</p>
+
+    <h3 class="doc-h3">What the proof verifies</h3>
+    <ul>
+      <li>The profile represents a real wallet on Robinhood Chain (not fabricated)</li>
+      <li>The wallet exceeds a minimum volume threshold (configurable per query)</li>
+      <li>The wallet exceeds a minimum transaction count</li>
+      <li>The wallet has been active for a minimum duration</li>
+    </ul>
+
+    <h3 class="doc-h3">What the proof does NOT reveal</h3>
+    <ul>
+      <li>The wallet address</li>
+      <li>The exact volume, balance, or transaction count</li>
+      <li>Any specific transaction or position</li>
+      <li>Any link between the profile ID and the real wallet</li>
+    </ul>
+
+    <p>ZK proofs are generated off-chain using a Groth16 circuit and verified on-chain by any smart contract that needs to confirm profile authenticity. Proof generation is handled by the protocol — users do not need to run any software.</p>
+
+    <!-- TOKEN -->
+    <h2 class="doc-h2" id="token">Token model</h2>
+    <p>No token is required for Haze v1. The protocol generates real USDG revenue from day one. A governance token may be introduced post-launch.</p>
+
+    <h3 class="doc-h3">Planned token mechanics (if launched)</h3>
+    <ul>
+      <li><strong>$HAZE</strong> — launching on Pons</li>
+      <li><strong>Buy-back-and-burn</strong> — 20% protocol revenue funds continuous token burns</li>
+      <li><strong>Deflationary</strong> — more protocol usage = more revenue = more burns = less supply</li>
+    </ul>
+
+    <!-- FAQ -->
+    <h2 class="doc-h2" id="faq">FAQ</h2>
+
+    <h3 class="doc-h3">Is my wallet address ever shared with data buyers?</h3>
+    <p>No. Your wallet address is stripped during anonymization. Buyers receive only behavioral patterns attached to a random profile ID. There is no way for a buyer to determine which wallet generated a profile.</p>
+
+
+    <h3 class="doc-h3">How much can I earn?</h3>
+    <p>Earnings depend on profile completeness, activity level, and query demand. A fully active cross-asset profile earning from ~200 queries per day would generate approximately $1-2 per day. Earnings scale with the number of AI agents operating on and querying from the protocol.</p>
+
+    <h3 class="doc-h3">Does Haze access my private keys?</h3>
+    <p>No. The wallet signature during setup authorizes profile creation only. Haze reads publicly available blockchain data via standard RPC calls. It has no access to private keys, seed phrases, or off-chain data.</p>
+
+
+    <h3 class="doc-h3">What chains does Haze support?</h3>
+    <p>Haze launches on Robinhood Chain. Multi-chain expansion (indexing activity from Ethereum, Base, Arbitrum) is planned for future phases.</p>
+
+    <h3 class="doc-h3">Do I need to hold any token to use Haze?</h3>
+    <p>No. Haze v1 operates entirely in USDG. No native token is required to connect, earn, or withdraw.</p>
+
+    <hr>
+
+  </div>
+</div>
+
+</div>
