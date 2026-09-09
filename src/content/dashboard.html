@@ -1,0 +1,291 @@
+<div class="app">
+
+<!-- SIDEBAR (desktop) -->
+<aside class="sidebar">
+  <div class="sb-brand" style="gap:8px"><a href="/"><img src="/logo.png" alt="Haze" style="height:32px;width:auto;opacity:0.95"></a><small>Beta</small></div>
+  <nav class="sb-nav">
+    <div class="sb-section">Overview</div>
+    <a class="sb-item active" data-page="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="sb-item" data-page="activity">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Activity
+    </a>
+    <a class="sb-item" data-page="earnings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Earnings
+    </a>
+
+    <div class="sb-section">Settings</div>
+    <a class="sb-item" data-page="data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Data Controls
+    </a>
+    <a class="sb-item" data-page="profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Profile
+    </a>
+  </nav>
+  <div class="sb-bottom">
+    <div class="sb-wallet">
+      <div class="sb-wallet-dot"></div>
+      <div>
+        <div class="sb-wallet-addr" id="sidebarAddr">Not connected</div>
+        <div class="sb-wallet-label">Connected</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- TOP BAR (mobile) -->
+  <div class="topbar">
+    <span class="brand" style="display:flex;align-items:center;gap:6px"><a href="/"><img src="/logo.png" alt="Haze" style="height:28px;width:auto;opacity:0.95"></a></span>
+    <div class="topbar-right">
+      <div class="topbar-wallet" id="topbarAddr">Not connected</div>
+      <div class="topbar-dot"></div>
+    </div>
+  </div>
+
+  <!-- PAGE HEADER -->
+  <div class="page-head">
+    <h1>Dashboard</h1>
+    <p>Your behavioral data earnings at a glance</p>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- EARNINGS HERO -->
+    <div class="earn-hero" id="sec-overview">
+      <div class="earn-main">
+        <div class="earn-label"><div class="earn-live"></div> Total earned</div>
+        <div class="earn-val" id="totalEarned">--</div>
+        <div class="earn-sub" id="earnSub">Waiting for data</div>
+      </div>
+      <div class="earn-card">
+        <div class="ec-label">Today</div>
+        <div class="ec-val" id="todayEarned">--</div>
+        <div class="ec-change" id="todayChange" style="color:var(--text4)">
+          --
+        </div>
+      </div>
+      <div class="earn-card">
+        <div class="ec-label">This month</div>
+        <div class="ec-val" id="monthEarned">--</div>
+        <div class="ec-change" id="monthChange" style="color:var(--text4)">
+          --
+        </div>
+      </div>
+    </div>
+
+    <!-- WITHDRAW -->
+    <div class="withdraw-card">
+      <div class="withdraw-head">
+        <div>
+          <div class="withdraw-bal">Available to withdraw</div>
+          <div class="withdraw-val" id="withdrawBal">--</div>
+        </div>
+        <button class="withdraw-btn" id="withdrawBtn">Withdraw USDG</button>
+      </div>
+      <div class="withdraw-info">
+        <div class="withdraw-stat">Network: <strong>Robinhood Chain</strong></div>
+        <div class="withdraw-stat">Settlement: <strong>Meridian</strong></div>
+        <div class="withdraw-stat">Fee: <strong>$0.00</strong></div>
+      </div>
+    </div>
+
+    <!-- CHART -->
+    <div class="chart-section" id="sec-earnings">
+      <div class="chart-card">
+        <div class="chart-head">
+          <div class="chart-title">Earnings over time</div>
+          <div class="chart-tabs">
+            <button class="chart-tab" data-range="7d">7d</button>
+            <button class="chart-tab active" data-range="30d">30d</button>
+            <button class="chart-tab" data-range="90d">90d</button>
+            <button class="chart-tab" data-range="all">All</button>
+          </div>
+        </div>
+        <div class="chart-area" id="chartArea" style="position:relative">
+          <!-- Y axis labels (HTML, not inside SVG) -->
+          <div style="position:absolute;top:0;right:0;bottom:24px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;z-index:2">
+            <span style="font-size:11px;font-family:var(--mono);color:rgba(192,160,240,0.5)">--</span>
+            <span style="font-size:11px;font-family:var(--mono);color:var(--text4)">--</span>
+            <span style="font-size:11px;font-family:var(--mono);color:var(--text4)">--</span>
+          </div>
+          <!-- Chart SVG (lines only, no text) -->
+          <svg style="width:100%;height:calc(100% - 24px);display:block" viewBox="0 0 600 180" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="rgba(152,96,222,0.2)"/>
+                <stop offset="100%" stop-color="rgba(152,96,222,0)"/>
+              </linearGradient>
+            </defs>
+            <line x1="0" y1="10" x2="600" y2="10" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+            <line x1="0" y1="60" x2="600" y2="60" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+            <line x1="0" y1="110" x2="600" y2="110" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+            <line x1="0" y1="160" x2="600" y2="160" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+            <polygon class="area" points="0,155 20,142 40,145 60,133 80,136 100,124 120,118 140,126 160,114 180,106 200,110 220,98 240,92 260,100 280,86 300,80 320,76 340,82 360,70 380,64 400,68 420,56 440,50 460,58 480,44 500,36 520,40 540,30 560,26 580,18 600,12 600,160 0,160"/>
+            <polyline class="sparkline-line" points="0,155 20,142 40,145 60,133 80,136 100,124 120,118 140,126 160,114 180,106 200,110 220,98 240,92 260,100 280,86 300,80 320,76 340,82 360,70 380,64 400,68 420,56 440,50 460,58 480,44 500,36 520,40 540,30 560,26 580,18 600,12" fill="none" stroke="var(--purple)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="600" cy="12" r="3" fill="var(--purple-light)"><animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/></circle>
+          </svg>
+          <!-- X axis labels (HTML) -->
+          <div style="display:flex;justify-content:space-between;padding-top:6px">
+            <span style="font-size:11px;color:var(--text4)">--</span>
+            <span style="font-size:11px;color:var(--text4)">--</span>
+            <span style="font-size:11px;color:var(--text4)">--</span>
+            <span style="font-size:11px;color:var(--text4)">--</span>
+            <span style="font-size:11px;color:var(--text4)">--</span>
+            <span style="font-size:11px;color:var(--text4)">Today</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TWO COLUMN: ACTIVITY + FINGERPRINT -->
+    <div class="two-col" id="sec-activity">
+      <!-- RECENT QUERIES -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Recent queries</div>
+          <span class="card-link">View all</span>
+        </div>
+        <div class="activity-list" id="activityList">
+          <!-- Backend: populate via websocket or polling from /api/activity -->
+          <div class="empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <h4>No activity yet</h4>
+            <p>Queries will appear here in real time once your profile is live</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FINGERPRINT -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Your behavioral fingerprint</div>
+          <span class="card-link" style="display:flex;align-items:center;gap:4px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Anonymized
+          </span>
+        </div>
+
+        <!-- Score ring -->
+        <div class="score-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="bg" cx="60" cy="60" r="52"/>
+            <circle class="fg" cx="60" cy="60" r="52" stroke-dasharray="327" stroke-dashoffset="327" id="scoreRing"/>
+          </svg>
+          <div class="score-val">
+            <div class="score-num" id="scoreNum">--</div>
+            <div class="score-label">Profile strength</div>
+          </div>
+        </div>
+
+        <div class="fp-bars" id="fpBars">
+          <div class="fp-row"><span class="fp-name">Trader type</span><div class="fp-track"><div class="fp-fill" data-width="85" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Asset allocation</span><div class="fp-track"><div class="fp-fill" data-width="78" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Risk profile</span><div class="fp-track"><div class="fp-fill" data-width="92" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">DeFi patterns</span><div class="fp-track"><div class="fp-fill" data-width="70" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Equity behavior</span><div class="fp-track"><div class="fp-fill" data-width="88" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Cross-asset</span><div class="fp-track"><div class="fp-fill" data-width="95" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Reactivity</span><div class="fp-track"><div class="fp-fill" data-width="65" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATA CONTROLS -->
+    <div class="controls-section" id="sec-data">
+      <div class="sec-label">Data sharing controls <span class="badge">Your choice</span></div>
+      <div class="controls-grid" id="controlsGrid">
+        <div class="ctrl-card">
+          <div class="ctrl-info"><h4>Trading behavior</h4><p>Swap frequency, hold duration, pair preferences</p></div>
+          <label class="toggle"><input type="checkbox" checked data-control="trading"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="ctrl-card">
+          <div class="ctrl-info"><h4>Risk profile</h4><p>Position sizing, leverage, liquidation history</p></div>
+          <label class="toggle"><input type="checkbox" checked data-control="risk"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="ctrl-card">
+          <div class="ctrl-info"><h4>DeFi activity</h4><p>Uniswap, Morpho usage, LP positions</p></div>
+          <label class="toggle"><input type="checkbox" checked data-control="defi"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="ctrl-card">
+          <div class="ctrl-info"><h4>Equity behavior</h4><p>Stock trading patterns, sector preferences</p></div>
+          <label class="toggle"><input type="checkbox" checked data-control="equity"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="ctrl-card">
+          <div class="ctrl-info"><h4>Timing patterns</h4><p>Peak hours, weekday vs weekend rhythms</p></div>
+          <label class="toggle"><input type="checkbox" checked data-control="timing"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="ctrl-card">
+          <div class="ctrl-info"><h4>Cross-asset rotation</h4><p>Capital flows between stocks and crypto</p></div>
+          <label class="toggle"><input type="checkbox" checked data-control="crossasset"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUERY BREAKDOWN -->
+    <div class="two-col" id="sec-profile">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Query breakdown</div><span class="card-link" id="queryRange">This month</span></div>
+        <div class="fp-bars" id="queryBreakdown">
+          <!-- Backend: populate from /api/query-breakdown -->
+          <div class="fp-row"><span class="fp-name">Trading agents</span><div class="fp-track"><div class="fp-fill" id="qbTrading" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Research agents</span><div class="fp-track"><div class="fp-fill" id="qbResearch" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Analytics firms</span><div class="fp-track"><div class="fp-fill" id="qbAnalytics" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+          <div class="fp-row"><span class="fp-name">Other</span><div class="fp-track"><div class="fp-fill" id="qbOther" style="width:0%"></div></div><span class="fp-pct">--</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Protocol stats</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+          <div style="padding:12px;background:rgba(255,255,255,0.01);border-radius:10px;border:1px solid rgba(255,255,255,0.02)">
+            <div style="font-size:10px;color:var(--text4);margin-bottom:4px">Revenue share</div>
+            <div style="font-size:18px;font-weight:400;font-family:var(--mono)">80%</div>
+          </div>
+          <div style="padding:12px;background:rgba(255,255,255,0.01);border-radius:10px;border:1px solid rgba(255,255,255,0.02)">
+            <div style="font-size:10px;color:var(--text4);margin-bottom:4px">Query price</div>
+            <div style="font-size:18px;font-weight:400;font-family:var(--mono)">$0.01</div>
+          </div>
+          <div style="padding:12px;background:rgba(255,255,255,0.01);border-radius:10px;border:1px solid rgba(255,255,255,0.02)">
+            <div style="font-size:10px;color:var(--text4);margin-bottom:4px">Settlement</div>
+            <div style="font-size:18px;font-weight:400;font-family:var(--mono)">200ms</div>
+          </div>
+          <div style="padding:12px;background:rgba(255,255,255,0.01);border-radius:10px;border:1px solid rgba(255,255,255,0.02)">
+            <div style="font-size:10px;color:var(--text4);margin-bottom:4px">Cross-asset premium</div>
+            <div style="font-size:18px;font-weight:400;font-family:var(--mono);color:var(--purple-light)">2.3x</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BOTTOM NAV (mobile) -->
+<div class="bottomnav">
+  <a class="bn-item active" data-page="overview">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <span>Home</span>
+  </a>
+  <a class="bn-item" data-page="activity">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Activity</span>
+  </a>
+  <a class="bn-item" data-page="earnings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    <span>Earn</span>
+  </a>
+  <a class="bn-item" data-page="data">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <span>Data</span>
+  </a>
+</div>
+
+</div>
