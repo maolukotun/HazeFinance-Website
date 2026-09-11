@@ -4,30 +4,31 @@
  * src/routes/v1/** and src/routes/health.ts.
  *
  * ============================================================================
- * READ THIS BEFORE POINTING REAL USERS OR AN ICO AT THIS DEPLOYMENT
+ * PERSISTENCE — READ THIS BEFORE POINTING REAL USERS OR AN ICO AT THIS DEPLOYMENT
  * ============================================================================
- * ProfileStore, SplitterSimulator, and ActivityLog all keep their state in
- * plain in-memory JS Maps/arrays — exactly like the original standalone
- * haze-backend scaffold this was merged from. That was already
- * dev/demo-only there; on Vercel it is *more* fragile, not less:
+ * ProfileStore, SplitterSimulator, and ActivityLog are backed by Postgres
+ * once a connection string is present (see src/server/db/client.ts's
+ * isDatabaseConfigured()) — required on Vercel, where each server route
+ * can run in its own function instance and instances are recycled on
+ * their own schedule. This used to be a plain in-memory Maps/arrays
+ * implementation, and that was a real, reproduced bug, not a theoretical
+ * one: a wallet registered via POST /v1/wallets/import on one instance
+ * was invisible to a GET .../profile that happened to land on a
+ * different (or later, cold) instance. Confirmed live on tryhazefi.com —
+ * import succeeded, then five straight profile reads all 404'd.
  *
- *   - Vercel Functions are not guaranteed to stay warm. A route can run in
- *     a fresh instance with empty state at any time, even seconds after a
- *     previous request populated it.
- *   - Under real traffic, multiple concurrent instances of the same
- *     function can exist simultaneously, each with its own copy of this
- *     module's state — a wallet registered against one instance will not
- *     be visible from another.
- *   - Every deploy replaces all running instances, discarding all state.
+ * To fix this on your Vercel project: Project -> Storage -> Create
+ * Database -> Postgres (this provisions via the Neon integration and
+ * auto-injects POSTGRES_URL and friends as env vars — nothing to copy by
+ * hand). Every table is created lazily on first query, so there's no
+ * separate migration step. Redeploy (or just wait for the next cold
+ * start) once it's attached.
  *
- * In short: this is enough to demo the full flow (connect a wallet, see a
- * fingerprint, see earnings move) on a single warm instance, but it is
- * NOT durable storage. Before real users — and especially before an ICO
- * that depends on this working correctly for real investors — replace
- * ProfileStore/SplitterSimulator/ActivityLog's internals with a real
- * database (Vercel Postgres, Vercel KV/Upstash Redis, or any external
- * Postgres) without changing their public method signatures, so the route
- * handlers in src/routes/v1/** don't need to change at all.
+ * With NO Postgres attached (the default for local `npm run dev`, and
+ * for a Vercel project that hasn't added the Storage integration yet),
+ * all three classes transparently fall back to the original in-memory
+ * behavior — same zero-setup local dev experience as before, but the
+ * production bug above still applies until Postgres is attached.
  *
  * The other pieces still explicitly NOT wired up, carried over unchanged
  * from the original backend (see this project's README for detail):
@@ -48,6 +49,7 @@ import { SplitterSimulator } from "./earnings/splitterSimulator";
 import { ActivityLog } from "./activity/activityLog";
 import { generateSyntheticWallets } from "./indexer/syntheticIndexer";
 import { MockPaymentVerifier, type PaymentVerifier } from "./payments/x402";
+import { isDatabaseConfigured } from "./db/client";
 
 const SEED_WALLET_COUNT = Number(process.env["SEED_WALLET_COUNT"] ?? 40);
 export const QUERY_PRICE_USDC = Number(process.env["QUERY_PRICE_USDC"] ?? 0.02);
@@ -64,14 +66,37 @@ export const activityLog = new ActivityLog();
 // money is expected to move.
 export const paymentVerifier: PaymentVerifier = new MockPaymentVerifier();
 
+// Always logged (not gated to dev) — this only ever reaches server-side
+// function logs (Vercel's Runtime Logs / your own terminal), never an end
+// user, and whether Postgres is attached is exactly the operational fact
+// you need to see here. See the big comment above for what to do about it.
+console.log(
+  isDatabaseConfigured()
+    ? "[haze] Postgres configured — wallet data will persist across serverless instances and deploys."
+    : "[haze] Postgres NOT configured — wallet data will NOT reliably persist across serverless instances (see singletons.ts). Attach a Postgres integration in the Vercel dashboard's Storage tab to fix this before relying on real wallet connections in production.",
+);
+
 // Seed synthetic demo wallets once per process/instance so the dashboard
 // has something to show immediately (matching the original backend's
 // `npm run dev` seeding script). All fake — no real user data. A real,
 // wallet-connect-imported wallet (see routes/v1/wallets/import.ts) is
 // registered separately with `synthetic: false` and never mixes with
 // this seed data's simulated earnings — see store.ts / splitterSimulator.ts.
+//
+// Synthetic wallet addresses are DETERMINISTIC (same seed every process —
+// see indexer/syntheticIndexer.ts), so seedSyntheticWallet() is a safe,
+// idempotent no-op past the first time on the Postgres path: every
+// instance/cold-start converges on the same seeded rows instead of
+// erroring on conflict or duplicating them.
+//
+// Top-level await is intentional and safe here: this module is
+// server-only (imported only from src/routes/**, never bundled for the
+// browser), and every route handler that reads `store`/`splitterSim`/
+// `activityLog` already awaits an async import of this module implicitly
+// by importing it at all — so seeding is guaranteed to finish before any
+// handler can run, on both the in-memory and Postgres backends.
 for (const wallet of generateSyntheticWallets(SEED_WALLET_COUNT)) {
-  store.registerWallet(wallet);
+  await store.seedSyntheticWallet(wallet);
 }
 
 if (process.env["NODE_ENV"] !== "production") {
@@ -81,24 +106,28 @@ if (process.env["NODE_ENV"] !== "production") {
   // POST /v1/profiles/query. Deliberately skipped in production —
   // Vercel Functions are not long-running processes, so a setInterval
   // there would do nothing useful and could outlive the request it was
-  // started in.
+  // started in. (This means production's earnings/activity panels stay
+  // at $0/empty until real buyers start hitting POST /v1/profiles/query —
+  // expected today, not a bug; see the README.)
   setInterval(() => {
-    const amount = Math.round((0.5 + Math.random() * 1.5) * 100) / 100;
-    splitterSim.deposit(amount);
-    const sampleFilters = [
-      {},
-      { traderType: "day_trader" as const },
-      { riskProfile: "aggressive" as const },
-      { minAvgDailyVolumeUsd: 100 },
-    ][Math.floor(Math.random() * 4)]!;
-    const matching = store.getMatchingWallets(sampleFilters);
-    activityLog.record(matching, amount, sampleFilters);
+    void (async () => {
+      const amount = Math.round((0.5 + Math.random() * 1.5) * 100) / 100;
+      await splitterSim.deposit(amount);
+      const sampleFilters = [
+        {},
+        { traderType: "day_trader" as const },
+        { riskProfile: "aggressive" as const },
+        { minAvgDailyVolumeUsd: 100 },
+      ][Math.floor(Math.random() * 4)]!;
+      const matching = await store.getMatchingWallets(sampleFilters);
+      await activityLog.record(matching, amount, sampleFilters);
+    })();
   }, 2000);
 
-  const firstWallet = store.getSyncSnapshot()[0]?.walletAddress;
+  const firstWallet = (await store.getSyncSnapshot())[0]?.walletAddress;
   if (firstWallet) {
     console.log(
-      `[haze] seeded ${store.size()} synthetic profiles. Try this address in the dashboard's dev wallet override:\n  ?devWallet=${firstWallet}`,
+      `[haze] seeded ${await store.size()} synthetic profiles. Try this address in the dashboard's dev wallet override:\n  ?devWallet=${firstWallet}`,
     );
   }
 }

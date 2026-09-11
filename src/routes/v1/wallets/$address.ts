@@ -18,7 +18,7 @@ export const Route = createFileRoute("/v1/wallets/$address")({
       DELETE: async ({ params }) => {
         const { address } = params;
         try {
-          store.deleteProfile(address);
+          await store.deleteProfile(address);
         } catch {
           return Response.json({ error: "no_profile", message: `no profile registered for ${address}` }, { status: 404 });
         }

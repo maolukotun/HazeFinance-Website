@@ -23,10 +23,10 @@ export const Route = createFileRoute("/v1/wallets/$address/withdraw")({
     handlers: {
       POST: async ({ params }) => {
         const { address } = params;
-        const profile = store.getOwnProfile(address);
+        const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 
-        const amount = splitterSim.claim(address);
+        const amount = await splitterSim.claim(address);
         return Response.json({
           walletAddress: address,
           withdrawnUsdc: Math.round(amount * 100) / 100,

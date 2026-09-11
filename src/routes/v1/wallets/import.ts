@@ -63,17 +63,17 @@ export const Route = createFileRoute("/v1/wallets/import")({
           );
         }
 
-        const alreadyRegistered = store.getOwnProfile(address) !== null;
+        const alreadyRegistered = (await store.getOwnProfile(address)) !== null;
         if (alreadyRegistered) {
-          store.refreshFromActivity(address, indexed.raw);
+          await store.refreshFromActivity(address, indexed.raw);
         } else {
           // synthetic: false — this is a real, wallet-connect-imported
           // address, not a dev seed wallet. See store.ts's registerWallet()
           // doc comment for why that flag matters.
-          store.registerWallet(indexed.raw, [], { synthetic: false });
+          await store.registerWallet(indexed.raw, [], { synthetic: false });
         }
 
-        const profile = store.getOwnProfile(address)!;
+        const profile = (await store.getOwnProfile(address))!;
         const visibleFingerprint = applyExclusions(profile.fingerprint, profile.excludedCategories);
 
         return Response.json({

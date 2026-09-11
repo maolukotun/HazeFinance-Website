@@ -16,7 +16,7 @@ export const Route = createFileRoute("/v1/wallets/$address/controls")({
     handlers: {
       POST: async ({ request, params }) => {
         const { address } = params;
-        const profile = store.getOwnProfile(address);
+        const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 
         let body: any;
@@ -54,7 +54,7 @@ export const Route = createFileRoute("/v1/wallets/$address/controls")({
         if (enabled) current.delete(category); // enabled = sharing ON = not excluded
         else current.add(category);
 
-        store.updateExclusions(address, [...current]);
+        await store.updateExclusions(address, [...current]);
         return Response.json({ applied: true, control, category, enabled });
       },
     },

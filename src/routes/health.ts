@@ -19,7 +19,7 @@ export const Route = createFileRoute("/health")({
         return withCors(
           Response.json({
             status: "ok",
-            profileCount: store.size(),
+            profileCount: await store.size(),
             priceUsdc: QUERY_PRICE_USDC,
             walletOwnerSharePct: (WALLET_OWNER_BPS / BPS_DENOMINATOR) * 100,
           }),

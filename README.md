@@ -50,6 +50,13 @@ To deploy: push this to a GitHub repo and import it at
 non-default environment variables (see `.env.example`) under Project
 Settings → Environment Variables before deploying for real use.
 
+**Also attach Postgres before relying on real wallet connections** —
+Project → Storage → Create Database → Postgres. Without it, wallet data
+does not reliably survive between requests in production (see
+`src/server/singletons.ts`'s persistence comment, and item #1 below);
+`?devWallet=` links still work either way since seeded synthetic wallets
+are deterministic. See that same comment for exactly what breaks and why.
+
 ## Local development
 
 ```bash
@@ -101,20 +108,25 @@ This was ported feature-for-feature from a scaffold whose own README was
 explicit about what it deliberately does **not** do yet. All of it
 carries over unchanged by the merge, and matters more now, not less:
 
-1. **Persistence.** `ProfileStore`, `SplitterSimulator`, and `ActivityLog`
-   (`src/server/singletons.ts`) are in-memory JS objects — no database.
-   On Vercel this is a real functional risk, not just a "restart wipes
-   it" caveat: Vercel Functions can spin up fresh instances at any time
-   and run several in parallel, each with its own copy of this state, so
-   a wallet registered against one instance may not be visible from
-   another, and every deploy discards all of it. This is fine for a demo
-   on a single warm instance; it is **not** durable storage. Before real
-   users — and especially before an ICO where investors are expected to
-   import wallets and see correct, persistent data — swap these three
-   classes' internals for a real database (Vercel Postgres, Vercel
-   KV/Upstash Redis, or an external Postgres). Their public method
-   signatures are designed to stay the same, so the route handlers in
-   `src/routes/v1/**` shouldn't need to change.
+1. **Persistence — FIXED, but only once you attach Postgres.**
+   `ProfileStore`, `SplitterSimulator`, and `ActivityLog`
+   (`src/server/singletons.ts`) now read and write Postgres
+   (`src/server/db/client.ts`) whenever a connection string is present —
+   attach one via Project → Storage → Create Database → Postgres and
+   every table is created automatically on first query, no migration
+   step to run. This was a real, reproduced bug, not a theoretical one:
+   on the in-memory version, a wallet registered via `POST
+   /v1/wallets/import` on one Vercel Function instance was invisible to
+   a `GET .../profile` that happened to land on a different (or later,
+   cold) instance — confirmed live on tryhazefi.com, where import
+   succeeded and five straight profile reads all 404'd right after.
+   **Without Postgres attached, that bug is still present** — the three
+   classes fall back to the original in-memory Maps/arrays so local
+   `npm run dev` keeps working with zero setup, but production is exactly
+   as fragile as before until the integration is attached. `?devWallet=`
+   links work either way, Postgres or not, since seeded synthetic wallet
+   addresses are deterministic (same seed every process) and so exist
+   independently on every instance.
 2. **No authentication.** Every `/v1/wallets/:address/*` route trusts the
    `:address` URL segment as given — anyone can currently read or mutate
    any wallet's data controls by address. Add a real auth step (e.g. a
@@ -160,7 +172,9 @@ flow end-to-end (connect a wallet → see a fingerprint → see simulated
 earnings move) — it's exactly as far along as the original two-repo
 scaffold was, just merged into one deployable unit. It does mean "deploy
 this and launch an ICO around it" needs the six items above addressed
-first, particularly #1 and #2.
+first, particularly #1 (attach Postgres — see above, it's the one item
+here that's a config step away rather than a code-writing project) and
+#2.
 
 ## Project layout
 
@@ -182,6 +196,7 @@ src/
     earnings/splitterSimulator.ts
     activity/activityLog.ts
     registryBridge/syncWeights.ts
+    db/client.ts             Postgres connection + lazy schema creation — see singletons.ts's persistence comment
     singletons.ts            shared store/simulator/log instances + seeding — READ THE COMMENT AT THE TOP
     cors.ts                  CORS helper for the two buyer-facing routes
   components/, hooks/, lib/, content/   unchanged from the original frontend

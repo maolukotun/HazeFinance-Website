@@ -58,7 +58,7 @@ export const Route = createFileRoute("/v1/profiles/query")({
           );
         }
 
-        const result = store.queryCohort(filters);
+        const result = await store.queryCohort(filters);
 
         if (!result.ok) {
           // Deliberately does not reveal how many profiles DID match — only
@@ -79,9 +79,9 @@ export const Route = createFileRoute("/v1/profiles/query")({
         // matched. Uses the privileged getMatchingWallets() accessor — this
         // never touches the response body, which still only ever contains
         // result.profiles (anonymized).
-        const matchingWallets = store.getMatchingWallets(filters);
-        splitterSim.deposit(QUERY_PRICE_USDC);
-        activityLog.record(matchingWallets, QUERY_PRICE_USDC, filters);
+        const matchingWallets = await store.getMatchingWallets(filters);
+        await splitterSim.deposit(QUERY_PRICE_USDC);
+        await activityLog.record(matchingWallets, QUERY_PRICE_USDC, filters);
 
         return withCors(Response.json({ profiles: result.profiles }));
       },

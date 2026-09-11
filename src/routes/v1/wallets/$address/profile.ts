@@ -27,7 +27,7 @@ export const Route = createFileRoute("/v1/wallets/$address/profile")({
     handlers: {
       GET: async ({ params }) => {
         const { address } = params;
-        const profile = store.getOwnProfile(address);
+        const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 
         const visibleFingerprint = applyExclusions(profile.fingerprint, profile.excludedCategories);

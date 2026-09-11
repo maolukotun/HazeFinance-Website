@@ -16,10 +16,10 @@ export const Route = createFileRoute("/v1/wallets/$address/activity")({
     handlers: {
       GET: async ({ params }) => {
         const { address } = params;
-        const profile = store.getOwnProfile(address);
+        const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 
-        const events = activityLog.forWallet(address);
+        const events = await activityLog.forWallet(address);
 
         const counts: Record<string, number> = { trading_agent: 0, research_agent: 0, analytics_firm: 0, other: 0 };
         for (const e of events) counts[e.buyerType] = (counts[e.buyerType] ?? 0) + 1;
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/v1/wallets/$address/activity")({
 
         // Same current-weight approximation the earnings routes use for
         // "today"/"this month" — see earnings.ts's comment.
-        const syntheticSnapshot = store.getSyncSnapshot().filter((r) => r.synthetic);
+        const syntheticSnapshot = (await store.getSyncSnapshot()).filter((r) => r.synthetic);
         const totalWeight = syntheticSnapshot.reduce((s, r) => s + r.weight, 0) || 1;
         const myShare = profile.synthetic ? (profile.weight / totalWeight) * 0.8 : 0;
 

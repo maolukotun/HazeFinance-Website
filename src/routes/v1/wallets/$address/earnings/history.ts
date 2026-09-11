@@ -18,7 +18,7 @@ export const Route = createFileRoute("/v1/wallets/$address/earnings/history")({
     handlers: {
       GET: async ({ request, params }) => {
         const { address } = params;
-        const profile = store.getOwnProfile(address);
+        const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 
         const url = new URL(request.url);
@@ -30,13 +30,12 @@ export const Route = createFileRoute("/v1/wallets/$address/earnings/history")({
 
         const now = Date.now();
         const cutoff = rangeMs === Infinity ? 0 : now - rangeMs * 24 * 60 * 60 * 1000;
-        const syntheticSnapshot = store.getSyncSnapshot().filter((r) => r.synthetic);
+        const syntheticSnapshot = (await store.getSyncSnapshot()).filter((r) => r.synthetic);
         const totalWeight = syntheticSnapshot.reduce((s, r) => s + r.weight, 0) || 1;
         const myShare = profile.synthetic ? (profile.weight / totalWeight) * 0.8 : 0;
 
         let running = 0;
-        const points = splitterSim
-          .depositHistory()
+        const points = (await splitterSim.depositHistory())
           .filter((h) => h.timestamp >= cutoff)
           .map((h) => {
             running += h.amountUsdc * myShare;

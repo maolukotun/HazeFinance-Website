@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { computeFingerprint } from "./fingerprint";
-import { computeWeight, generateProfileId, toAnonymizedProfile } from "./privacyLayer";
+import { applyExclusions, computeWeight, generateProfileId } from "./privacyLayer";
+import { getSql, isDatabaseConfigured } from "../db/client";
 import type { AnonymizedProfile, BehavioralFingerprint, InternalProfileRecord, QueryFilters, RawWalletMetrics } from "../types";
 
 /**
@@ -26,32 +27,43 @@ export interface OwnProfile {
 }
 
 /**
- * Holds every registered profile **in memory**. A real deployment must
- * swap this for a durable store (Postgres, Vercel KV/Postgres, etc.) — see
- * the top-level README's "Persistence" section. This matters even more
- * here than it did for the original standalone backend: on Vercel, each
- * server route can run in its own function instance, and instances are
- * recycled on their own schedule, so in-memory state is not guaranteed to
- * survive between requests, let alone across a deploy. The
- * k-anonymity enforcement and privacy boundaries below are the part that
- * has to survive that swap unchanged.
+ * Holds every registered profile. Every method is async because the
+ * PRODUCTION path (see src/server/db/client.ts) is backed by Postgres —
+ * required on Vercel, where each server route can run in its own function
+ * instance and instances are recycled on their own schedule, so plain
+ * in-memory state is not guaranteed to survive between requests, let
+ * alone across a deploy. This was a real, reproduced bug, not a
+ * theoretical one: importing a wallet on tryhazefi.com and immediately
+ * reading its profile back 404'd every time, because the import and the
+ * read landed on different instances that each had their own empty copy
+ * of what used to be a plain in-memory Map.
+ *
+ * DEV FALLBACK: with no Postgres connection string configured (the
+ * common case for `npm run dev` with no Vercel Storage integration
+ * attached), this class transparently falls back to the original
+ * in-memory Maps — same behavior as before, zero setup required. See
+ * isDatabaseConfigured() in db/client.ts for exactly what flips this on.
  *
  * Design note on privacy boundary: `queryCohort` is the ONLY public method
  * that returns profile data, and it returns AnonymizedProfile objects (no
- * wallet address field). The two Maps below use real JavaScript private
- * class fields (the `#` prefix) so code outside this class cannot reach
- * in and read them even by accident. Anything that needs the wallet
- * address — registry syncing, payout — goes through `getSyncSnapshot()`,
- * named deliberately so it's obvious in a code review that it's a
- * privileged accessor, not something an API route should ever call
- * directly in a response body.
+ * wallet address field). The in-memory fallback's two Maps use real
+ * JavaScript private class fields (the `#` prefix) so code outside this
+ * class cannot reach in and read them even by accident. Anything that
+ * needs the wallet address — registry syncing, payout — goes through
+ * `getSyncSnapshot()`, named deliberately so it's obvious in a code review
+ * that it's a privileged accessor, not something an API route should ever
+ * call directly in a response body.
  */
 export class ProfileStore {
-  #records = new Map<string, InternalProfileRecord>();
-  #profileIdByWallet = new Map<string, string>();
+  #usePostgres = isDatabaseConfigured();
+  #memRecords = new Map<string, InternalProfileRecord>();
+  #memProfileIdByWallet = new Map<string, string>();
 
   /**
    * Register a new wallet's profile. Returns the assigned profile id.
+   * Throws if the wallet is already registered — callers (the real
+   * wallet-import route) are expected to check getOwnProfile() first and
+   * call refreshFromActivity() instead if it already exists.
    *
    * `synthetic` defaults to true because every existing caller other than
    * the real wallet-import route registers fake demo wallets. The wallet
@@ -61,27 +73,80 @@ export class ProfileStore {
    * revenue ticks from paying out to a real wallet that has never
    * actually generated any protocol revenue.
    */
-  registerWallet(raw: RawWalletMetrics, excludedCategories: string[] = [], { synthetic = true }: { synthetic?: boolean } = {}): string {
-    if (this.#profileIdByWallet.has(raw.walletAddress)) {
-      throw new Error(`wallet ${raw.walletAddress} already has a profile`);
-    }
-
+  async registerWallet(
+    raw: RawWalletMetrics,
+    excludedCategories: string[] = [],
+    { synthetic = true }: { synthetic?: boolean } = {},
+  ): Promise<string> {
     const fingerprint = computeFingerprint(raw);
     const profileId = generateProfileId();
+    const weight = computeWeight(fingerprint);
 
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const existing = await sql`SELECT 1 FROM wallet_profiles WHERE wallet_address = ${raw.walletAddress}`;
+      if (existing.rows.length > 0) {
+        throw new Error(`wallet ${raw.walletAddress} already has a profile`);
+      }
+      await sql`
+        INSERT INTO wallet_profiles (wallet_address, profile_id, fingerprint, weight, excluded_categories, synthetic)
+        VALUES (${raw.walletAddress}, ${profileId}, ${JSON.stringify(fingerprint)}::jsonb, ${weight}, ${JSON.stringify(excludedCategories)}::jsonb, ${synthetic})
+      `;
+      return profileId;
+    }
+
+    if (this.#memProfileIdByWallet.has(raw.walletAddress)) {
+      throw new Error(`wallet ${raw.walletAddress} already has a profile`);
+    }
     const record: InternalProfileRecord = {
       profileId,
       walletAddress: raw.walletAddress,
       fingerprint,
-      weight: computeWeight(fingerprint),
+      weight,
       excludedCategories,
       synthetic,
     };
-
-    this.#records.set(profileId, record);
-    this.#profileIdByWallet.set(raw.walletAddress, profileId);
-
+    this.#memRecords.set(profileId, record);
+    this.#memProfileIdByWallet.set(raw.walletAddress, profileId);
     return profileId;
+  }
+
+  /**
+   * Seeds a synthetic demo wallet WITHOUT throwing if it's already
+   * registered — used only by singletons.ts's startup seeding loop.
+   * Synthetic wallet addresses are deterministic (same seed every
+   * process — see indexer/syntheticIndexer.ts), so with Postgres
+   * attached, re-seeding on every cold start must be a no-op past the
+   * first time, not a crash. Returns true if a new row was actually
+   * inserted.
+   */
+  async seedSyntheticWallet(raw: RawWalletMetrics): Promise<boolean> {
+    const fingerprint = computeFingerprint(raw);
+    const weight = computeWeight(fingerprint);
+
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const profileId = generateProfileId();
+      const result = await sql`
+        INSERT INTO wallet_profiles (wallet_address, profile_id, fingerprint, weight, excluded_categories, synthetic)
+        VALUES (${raw.walletAddress}, ${profileId}, ${JSON.stringify(fingerprint)}::jsonb, ${weight}, '[]'::jsonb, true)
+        ON CONFLICT (wallet_address) DO NOTHING
+      `;
+      return (result.rowCount ?? 0) > 0;
+    }
+
+    if (this.#memProfileIdByWallet.has(raw.walletAddress)) return false;
+    const profileId = generateProfileId();
+    this.#memRecords.set(profileId, {
+      profileId,
+      walletAddress: raw.walletAddress,
+      fingerprint,
+      weight,
+      excludedCategories: [],
+      synthetic: true,
+    });
+    this.#memProfileIdByWallet.set(raw.walletAddress, profileId);
+    return true;
   }
 
   /**
@@ -89,55 +154,111 @@ export class ProfileStore {
    * fingerprint is recomputed daily as new transactions come in" — this is
    * that recomputation, not a rare edge case.
    */
-  refreshFromActivity(walletAddress: string, raw: RawWalletMetrics): void {
-    const profileId = this.#profileIdByWallet.get(walletAddress);
-    if (!profileId) throw new Error(`no profile for wallet ${walletAddress}`);
-
-    const existing = this.#records.get(profileId)!;
+  async refreshFromActivity(walletAddress: string, raw: RawWalletMetrics): Promise<void> {
     const fingerprint = computeFingerprint(raw);
+    const weight = computeWeight(fingerprint);
 
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const result = await sql`
+        UPDATE wallet_profiles
+        SET fingerprint = ${JSON.stringify(fingerprint)}::jsonb, weight = ${weight}, updated_at = now()
+        WHERE wallet_address = ${walletAddress}
+      `;
+      if ((result.rowCount ?? 0) === 0) throw new Error(`no profile for wallet ${walletAddress}`);
+      return;
+    }
+
+    const profileId = this.#memProfileIdByWallet.get(walletAddress);
+    if (!profileId) throw new Error(`no profile for wallet ${walletAddress}`);
+    const existing = this.#memRecords.get(profileId)!;
     existing.fingerprint = fingerprint;
-    existing.weight = computeWeight(fingerprint);
+    existing.weight = weight;
   }
 
-  updateExclusions(walletAddress: string, excludedCategories: string[]): void {
-    const profileId = this.#profileIdByWallet.get(walletAddress);
+  async updateExclusions(walletAddress: string, excludedCategories: string[]): Promise<void> {
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const result = await sql`
+        UPDATE wallet_profiles SET excluded_categories = ${JSON.stringify(excludedCategories)}::jsonb, updated_at = now()
+        WHERE wallet_address = ${walletAddress}
+      `;
+      if ((result.rowCount ?? 0) === 0) throw new Error(`no profile for wallet ${walletAddress}`);
+      return;
+    }
+
+    const profileId = this.#memProfileIdByWallet.get(walletAddress);
     if (!profileId) throw new Error(`no profile for wallet ${walletAddress}`);
-    this.#records.get(profileId)!.excludedCategories = excludedCategories;
+    this.#memRecords.get(profileId)!.excludedCategories = excludedCategories;
   }
 
   /**
    * "Users can delete their profile and all associated data at any time
    * with one tap." This is that delete — it removes the fingerprint and
-   * the wallet mapping entirely, immediately, from this store. The caller
-   * is responsible for also calling ProfileRegistry.deleteProfile()
-   * on-chain (see registryBridge/) so payout weight zeroes out too.
+   * the wallet mapping entirely, immediately, from this store (plus any
+   * splitter-claim bookkeeping, on the Postgres path). The caller is
+   * responsible for also calling ProfileRegistry.deleteProfile() on-chain
+   * (see registryBridge/) so payout weight zeroes out too.
    */
-  deleteProfile(walletAddress: string): void {
-    const profileId = this.#profileIdByWallet.get(walletAddress);
-    if (!profileId) throw new Error(`no profile for wallet ${walletAddress}`);
+  async deleteProfile(walletAddress: string): Promise<void> {
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const result = await sql`DELETE FROM wallet_profiles WHERE wallet_address = ${walletAddress}`;
+      if ((result.rowCount ?? 0) === 0) throw new Error(`no profile for wallet ${walletAddress}`);
+      await sql`DELETE FROM splitter_claims WHERE wallet_address = ${walletAddress}`;
+      return;
+    }
 
-    this.#records.delete(profileId);
-    this.#profileIdByWallet.delete(walletAddress);
+    const profileId = this.#memProfileIdByWallet.get(walletAddress);
+    if (!profileId) throw new Error(`no profile for wallet ${walletAddress}`);
+    this.#memRecords.delete(profileId);
+    this.#memProfileIdByWallet.delete(walletAddress);
   }
 
   /**
    * The only method that returns profile data outside this module.
    * Enforces the k-anonymity floor: fewer than minCohortSize distinct
    * matching wallets means refusal, not a smaller-than-usual result.
+   *
+   * Filtering happens in application code (matchesFilters below) rather
+   * than as a translated SQL WHERE clause even on the Postgres path — the
+   * match logic touches nested/nullable fingerprint fields, and keeping
+   * one code path for it means the two backends can never silently
+   * disagree on what "matches" means. Fine at this project's scale (a
+   * demo scaffold's wallet count, not billions of rows).
    */
-  queryCohort(filters: QueryFilters, minCohortSize = K_ANONYMITY_MIN): QueryCohortResult {
-    const matches = [...this.#records.values()].filter((r) => matchesFilters(r.fingerprint, filters));
+  async queryCohort(filters: QueryFilters, minCohortSize = K_ANONYMITY_MIN): Promise<QueryCohortResult> {
+    const records = await this.#allRecords();
+    const matches = records.filter((r) => matchesFilters(r.fingerprint, filters));
 
     if (matches.length < minCohortSize) {
       return { ok: false, reason: "cohort_too_small", minimumRequired: minCohortSize };
     }
 
-    return { ok: true, profiles: matches.map(toAnonymizedProfile) };
+    // Same field list toAnonymizedProfile() in privacyLayer.ts strips down
+    // to — replicated inline here (rather than importing that helper)
+    // because it's typed to take a full InternalProfileRecord, and the row
+    // shape #allRecords() returns deliberately carries only what this
+    // method and getMatchingWallets() actually need, not a wallet's weight
+    // (registry/payout data has no business being anywhere near a
+    // buyer-facing query result). Treat this field list as the same
+    // privacy boundary toAnonymizedProfile() documents.
+    return {
+      ok: true,
+      profiles: matches.map((r) => ({
+        profileId: r.profileId,
+        fingerprint: applyExclusions(r.fingerprint, r.excludedCategories),
+      })),
+    };
   }
 
-  size(): number {
-    return this.#records.size;
+  async size(): Promise<number> {
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const result = await sql`SELECT COUNT(*)::int AS count FROM wallet_profiles`;
+      return (result.rows[0]?.["count"] as number | undefined) ?? 0;
+    }
+    return this.#memRecords.size;
   }
 
   /**
@@ -150,10 +271,26 @@ export class ProfileStore {
    * :address URL param as given, which is NOT authentication; see the
    * README's "Security" section.
    */
-  getOwnProfile(walletAddress: string): OwnProfile | null {
-    const profileId = this.#profileIdByWallet.get(walletAddress);
+  async getOwnProfile(walletAddress: string): Promise<OwnProfile | null> {
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const result = await sql`
+        SELECT fingerprint, weight, excluded_categories, synthetic
+        FROM wallet_profiles WHERE wallet_address = ${walletAddress}
+      `;
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        fingerprint: row["fingerprint"] as BehavioralFingerprint,
+        weight: row["weight"] as number,
+        excludedCategories: row["excluded_categories"] as string[],
+        synthetic: row["synthetic"] as boolean,
+      };
+    }
+
+    const profileId = this.#memProfileIdByWallet.get(walletAddress);
     if (!profileId) return null;
-    const record = this.#records.get(profileId)!;
+    const record = this.#memRecords.get(profileId)!;
     return {
       fingerprint: record.fingerprint,
       weight: record.weight,
@@ -167,8 +304,17 @@ export class ProfileStore {
    * the only place in this class that exposes wallet addresses. Do not
    * call this from an API route handler's response body.
    */
-  getSyncSnapshot(): Array<{ walletAddress: string; weight: number; synthetic: boolean }> {
-    return [...this.#records.values()].map((r) => ({
+  async getSyncSnapshot(): Promise<Array<{ walletAddress: string; weight: number; synthetic: boolean }>> {
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const result = await sql`SELECT wallet_address, weight, synthetic FROM wallet_profiles`;
+      return result.rows.map((r) => ({
+        walletAddress: r["wallet_address"] as string,
+        weight: r["weight"] as number,
+        synthetic: r["synthetic"] as boolean,
+      }));
+    }
+    return [...this.#memRecords.values()].map((r) => ({
       walletAddress: r.walletAddress,
       weight: r.weight,
       synthetic: r.synthetic,
@@ -188,10 +334,33 @@ export class ProfileStore {
    * the "Recent queries" activity feed or the query-breakdown stats for a
    * query it has no real earnings from.
    */
-  getMatchingWallets(filters: QueryFilters): string[] {
-    return [...this.#records.values()]
-      .filter((r) => r.synthetic && matchesFilters(r.fingerprint, filters))
-      .map((r) => r.walletAddress);
+  async getMatchingWallets(filters: QueryFilters): Promise<string[]> {
+    const records = await this.#allRecords({ syntheticOnly: true });
+    return records.filter((r) => matchesFilters(r.fingerprint, filters)).map((r) => r.walletAddress);
+  }
+
+  async #allRecords(opts: { syntheticOnly?: boolean } = {}): Promise<
+    Array<{ walletAddress: string; profileId: string; fingerprint: BehavioralFingerprint; excludedCategories: string[] }>
+  > {
+    if (this.#usePostgres) {
+      const sql = await getSql();
+      const result = opts.syntheticOnly
+        ? await sql`SELECT wallet_address, profile_id, fingerprint, excluded_categories FROM wallet_profiles WHERE synthetic = true`
+        : await sql`SELECT wallet_address, profile_id, fingerprint, excluded_categories FROM wallet_profiles`;
+      return result.rows.map((r) => ({
+        walletAddress: r["wallet_address"] as string,
+        profileId: r["profile_id"] as string,
+        fingerprint: r["fingerprint"] as BehavioralFingerprint,
+        excludedCategories: r["excluded_categories"] as string[],
+      }));
+    }
+    const all = [...this.#memRecords.values()];
+    return (opts.syntheticOnly ? all.filter((r) => r.synthetic) : all).map((r) => ({
+      walletAddress: r.walletAddress,
+      profileId: r.profileId,
+      fingerprint: r.fingerprint,
+      excludedCategories: r.excludedCategories,
+    }));
   }
 }
 
