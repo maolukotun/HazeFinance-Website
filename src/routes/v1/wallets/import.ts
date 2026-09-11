@@ -63,14 +63,30 @@ export const Route = createFileRoute("/v1/wallets/import")({
           );
         }
 
-        const alreadyRegistered = (await store.getOwnProfile(address)) !== null;
-        if (alreadyRegistered) {
-          await store.refreshFromActivity(address, indexed.raw);
-        } else {
-          // synthetic: false — this is a real, wallet-connect-imported
-          // address, not a dev seed wallet. See store.ts's registerWallet()
-          // doc comment for why that flag matters.
-          await store.registerWallet(indexed.raw, [], { synthetic: false });
+        // TEMPORARY DIAGNOSTIC — narrows down a live 500 on this route.
+        // Do not leave this shipped: it exposes internal error detail on a
+        // route with no auth. Remove once the root cause is fixed.
+        let alreadyRegistered: boolean;
+        try {
+          alreadyRegistered = (await store.getOwnProfile(address)) !== null;
+          if (alreadyRegistered) {
+            await store.refreshFromActivity(address, indexed.raw);
+          } else {
+            // synthetic: false — this is a real, wallet-connect-imported
+            // address, not a dev seed wallet. See store.ts's registerWallet()
+            // doc comment for why that flag matters.
+            await store.registerWallet(indexed.raw, [], { synthetic: false });
+          }
+        } catch (err) {
+          return Response.json(
+            {
+              status: "error",
+              debugMessage: (err as Error)?.message,
+              debugName: (err as Error)?.name,
+              debugStack: (err as Error)?.stack,
+            },
+            { status: 200 },
+          );
         }
 
         const profile = (await store.getOwnProfile(address))!;

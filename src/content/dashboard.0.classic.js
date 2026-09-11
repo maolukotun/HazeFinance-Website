@@ -497,8 +497,24 @@ async function openWalletMenu(anchorEl) {
   menu.id = 'walletMenu'
   menu.className = 'wallet-menu'
   const rect = anchorEl.getBoundingClientRect()
-  menu.style.top = `${Math.round(rect.bottom + 8)}px`
   menu.style.left = `${Math.round(Math.min(rect.left, window.innerWidth - 216))}px`
+
+  // The wallet indicator lives at the bottom of the sidebar on desktop, so
+  // opening the menu downward (the old default) pushed most of it off the
+  // bottom of the window — the "Disconnect wallet" item especially was
+  // never reachable. Open upward (anchored above the button, growing
+  // toward the top of the screen) whenever there isn't comfortably enough
+  // room below the button for the menu's contents; a rough ceiling on menu
+  // height (up to ~5 wallet entries plus the divider + disconnect row)
+  // is good enough here since this is just picking a direction, not laying
+  // out anything pixel-precise.
+  const spaceBelow = window.innerHeight - rect.bottom
+  const MENU_MAX_HEIGHT_ESTIMATE = 260
+  if (spaceBelow < MENU_MAX_HEIGHT_ESTIMATE) {
+    menu.style.bottom = `${Math.round(window.innerHeight - rect.top + 8)}px`
+  } else {
+    menu.style.top = `${Math.round(rect.bottom + 8)}px`
+  }
 
   if (!bridge) {
     menu.innerHTML = '<div class="wallet-menu-empty">Wallet connect unavailable — reload the page</div>'
@@ -514,8 +530,19 @@ async function openWalletMenu(anchorEl) {
   const injected = await bridge.discoverInjectedProviders()
   menu.innerHTML = ''
   addWalletMenuItem(menu, 'Coinbase Wallet', null, () => bridge.connectCoinbaseWallet())
-  if (injected.length > 0) {
-    for (const detail of injected) {
+  // The Coinbase Wallet browser extension (when installed) also announces
+  // itself via EIP-6963, same as any other injected wallet — without this
+  // filter it showed up a second time in this same list, right below the
+  // "Coinbase Wallet" entry the line above already always adds via the SDK
+  // path. Anything whose name/rdns identifies it as Coinbase is skipped
+  // here so it only ever appears once.
+  const nonCoinbaseInjected = injected.filter((detail) => {
+    const name = (detail.info?.name || '').toLowerCase()
+    const rdns = (detail.info?.rdns || '').toLowerCase()
+    return !name.includes('coinbase') && !rdns.includes('coinbase')
+  })
+  if (nonCoinbaseInjected.length > 0) {
+    for (const detail of nonCoinbaseInjected) {
       addWalletMenuItem(menu, detail.info.name, detail.info.icon, () => bridge.connectInjectedProvider(detail))
     }
   } else if (bridge.getLegacyInjectedProvider()) {
