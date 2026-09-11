@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { fingerprintBarPercentages, profileStrength } from "@/server/aggregation/scoring";
 import { applyExclusions } from "@/server/aggregation/privacyLayer";
 import { store } from "@/server/singletons";
+import { requireWalletSession } from "@/server/auth/walletAuth";
 
 function notFoundProfile(walletAddress: string) {
   return Response.json({ error: "no_profile", message: `no profile registered for ${walletAddress}` }, { status: 404 });
@@ -16,17 +17,19 @@ function notFoundProfile(walletAddress: string) {
  * panel.
  *
  * Wallet-owner-facing routes (this one included) are NOT x402-gated (the
- * wallet owner isn't paying to see their own data) but they also aren't
- * authenticated: this scaffold trusts the `:address` URL segment as
- * given. Before this goes anywhere near production, add real auth (e.g.
- * a signed-message challenge proving control of the address) — see the
- * project README.
+ * wallet owner isn't paying to see their own data) but ARE now
+ * authenticated: requireWalletSession() below requires the caller to have
+ * already proven control of `:address` via a wallet signature (see
+ * POST /v1/auth/verify and src/server/auth/walletAuth.ts's doc comment).
  */
 export const Route = createFileRoute("/v1/wallets/$address/profile")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ request, params }) => {
         const { address } = params;
+        const authError = requireWalletSession(request, address);
+        if (authError) return authError;
+
         const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 

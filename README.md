@@ -132,11 +132,32 @@ carries over unchanged by the merge, and matters more now, not less:
    links work either way, Postgres or not, since seeded synthetic wallet
    addresses are deterministic (same seed every process) and so exist
    independently on every instance.
-2. **No authentication.** Every `/v1/wallets/:address/*` route trusts the
-   `:address` URL segment as given — anyone can currently read or mutate
-   any wallet's data controls by address. Add a real auth step (e.g. a
-   signed-message challenge proving control of the private key for that
-   address) before this is exposed to real users.
+2. **Authentication — FIXED.** Every `/v1/wallets/:address/*` route now
+   requires proof the caller actually controls `:address`, not just
+   knowledge of it. The flow (`src/shared/authMessage.ts`,
+   `src/server/auth/walletAuth.ts`, `src/routes/v1/auth/{verify,logout}.ts`):
+   the wallet signs a short-lived, address-bound message
+   (`personal_sign` — no gas, no transaction) via
+   `signInWithWallet()` (`src/lib/walletProviders.ts`); the client posts
+   `{address, issuedAt, signature}` to `POST /v1/auth/verify`, which
+   recovers the signer with `viem`'s `verifyMessage()` and, on a match,
+   sets an httpOnly, 24-hour session cookie
+   (`address.expiresAt.hmac`, HMAC-SHA256, timing-safe compare — see
+   `walletAuth.ts`); every `/v1/wallets/:address/*` route then calls
+   `requireWalletSession(request, address)` and 401s if the cookie is
+   missing, expired, tampered with, or issued for a different address.
+   `POST /v1/auth/logout` clears the cookie. The session is intentionally
+   **stateless** (no server-side session store) so it doesn't reintroduce
+   the same "different serverless instances disagree" bug class as item
+   #1 above — any instance can verify any session using only
+   `HAZE_SESSION_SECRET`.
+   **Required in production**: set `HAZE_SESSION_SECRET` in Vercel's
+   Environment Variables (any long random string, e.g. `openssl rand -hex
+   32`) — `walletAuth.ts` intentionally throws if it's unset outside
+   local dev, rather than silently generating a different secret per
+   instance. See `.env.example` for the full explanation. Local `npm run
+   dev` needs no setup — it falls back to a fixed, clearly-labeled
+   insecure dev secret.
 3. **No real Meridian settlement.** `src/server/payments/x402.ts` ships
    with `MockPaymentVerifier` only (accepts headers like `"mock:0.02"`).
    `src/server/payments/meridian.ts`'s `MeridianPaymentVerifier` throws on
@@ -177,9 +198,9 @@ flow end-to-end (connect a wallet → see a fingerprint → see simulated
 earnings move) — it's exactly as far along as the original two-repo
 scaffold was, just merged into one deployable unit. It does mean "deploy
 this and launch an ICO around it" needs the six items above addressed
-first, particularly #1 (attach Postgres — see above, it's the one item
-here that's a config step away rather than a code-writing project) and
-#2.
+first — particularly #1 (attach Postgres) and #2 (set
+`HAZE_SESSION_SECRET`), which are now both config steps away rather than
+code-writing projects.
 
 ## Project layout
 
@@ -193,6 +214,8 @@ src/
     v1/wallets/$address.ts                           DELETE /v1/wallets/:address
     v1/wallets/$address/{profile,controls,earnings,activity,withdraw}.ts
     v1/wallets/$address/earnings/history.ts
+    v1/auth/verify.ts                                POST /v1/auth/verify — wallet-signature sign-in
+    v1/auth/logout.ts                                POST /v1/auth/logout — clears the session cookie
   server/                    framework-independent backend logic (ported from haze-backend)
     types.ts                             shared types/constants
     aggregation/{fingerprint,privacyLayer,scoring,store,controlsMapping}.ts
@@ -201,8 +224,11 @@ src/
     earnings/splitterSimulator.ts
     activity/activityLog.ts
     registryBridge/syncWeights.ts
+    auth/walletAuth.ts       session cookie issuance/verification — see "Authentication" above
     db/client.ts             Postgres connection + lazy schema creation — see singletons.ts's persistence comment
     singletons.ts            shared store/simulator/log instances + seeding — READ THE COMMENT AT THE TOP
     cors.ts                  CORS helper for the two buyer-facing routes
-  components/, hooks/, lib/, content/   unchanged from the original frontend
+  shared/                    code shared between client and server bundles
+    authMessage.ts           builds the exact sign-in message string both sides must agree on
+  components/, hooks/, lib/, content/   unchanged from the original frontend, plus lib/walletProviders.ts's new signInWithWallet()/getCoinbaseProvider()
 ```

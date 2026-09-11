@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { createFileRoute } from "@tanstack/react-router";
 import { store } from "@/server/singletons";
+import { requireWalletSession } from "@/server/auth/walletAuth";
 
 /**
  * DELETE /v1/wallets/:address
@@ -9,14 +10,18 @@ import { store } from "@/server/singletons";
  * this is the "delete my profile and all associated data" flow described
  * in the product brief, wired up to HTTP.
  *
- * Not authenticated, same caveat as every other wallet route here — see
- * the project README's "Security" section.
+ * Authenticated — see src/server/auth/walletAuth.ts. This is arguably the
+ * single most important route to have gotten this right on: before auth,
+ * anyone who knew a wallet address could delete that wallet's profile.
  */
 export const Route = createFileRoute("/v1/wallets/$address")({
   server: {
     handlers: {
-      DELETE: async ({ params }) => {
+      DELETE: async ({ request, params }) => {
         const { address } = params;
+        const authError = requireWalletSession(request, address);
+        if (authError) return authError;
+
         try {
           await store.deleteProfile(address);
         } catch {

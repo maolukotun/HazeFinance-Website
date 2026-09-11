@@ -9,8 +9,10 @@ import {
   discoverInjectedProviders,
   disconnectWallet,
   ensureRobinhoodChain,
+  getCoinbaseProvider,
   getLegacyInjectedProvider,
   openMetaMaskInstallLink,
+  signInWithWallet,
 } from "@/lib/walletProviders";
 
 // dashboard.0.classic.js runs as a plain inline <script> tag, not an ES
@@ -45,8 +47,10 @@ if (typeof window !== "undefined") {
     discoverInjectedProviders,
     disconnectWallet,
     ensureRobinhoodChain,
+    getCoinbaseProvider,
     getLegacyInjectedProvider,
     openMetaMaskInstallLink,
+    signInWithWallet,
   };
 }
 

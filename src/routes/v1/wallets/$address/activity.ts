@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { createFileRoute } from "@tanstack/react-router";
 import { store, activityLog } from "@/server/singletons";
+import { requireWalletSession } from "@/server/auth/walletAuth";
 
 function notFoundProfile(walletAddress: string) {
   return Response.json({ error: "no_profile", message: `no profile registered for ${walletAddress}` }, { status: 404 });
@@ -14,8 +15,11 @@ function round1(n: number): number {
 export const Route = createFileRoute("/v1/wallets/$address/activity")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ request, params }) => {
         const { address } = params;
+        const authError = requireWalletSession(request, address);
+        if (authError) return authError;
+
         const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 

@@ -25,6 +25,14 @@
 
 import { CoinbaseWalletSDK } from "@coinbase/wallet-sdk";
 import { DEFAULT_ROBINHOOD_CHAIN, type AddEthereumChainParameter } from "./robinhoodChain";
+import { buildSignInMessage } from "../shared/authMessage";
+
+// Mirrors dashboard.tsx's own HAZE_API_BASE default (same-origin unless
+// deliberately pointed at a separately-hosted backend) — duplicated
+// rather than imported from there to avoid a two-way dependency between
+// the two files; it's one line, and both must always compute the exact
+// same value from the same env var.
+const API_BASE = import.meta.env.VITE_HAZE_API_URL ?? "";
 
 /** Minimal EIP-1193 provider shape — enough for what this file needs. */
 export interface Eip1193Provider {
@@ -39,7 +47,15 @@ export interface Eip6963ProviderDetail {
 }
 
 let coinbaseProvider: Eip1193Provider | null = null;
-function getCoinbaseProvider(): Eip1193Provider {
+/**
+ * The Coinbase Wallet SDK's provider instance — memoized, so calling this
+ * again after connectCoinbaseWallet() already succeeded returns the SAME
+ * instance rather than re-prompting a connection. Exported so callers
+ * that connected via connectCoinbaseWallet() can get back the exact
+ * provider to sign with afterward (see signInWithWallet below) without
+ * connectCoinbaseWallet() itself needing to change what it returns.
+ */
+export function getCoinbaseProvider(): Eip1193Provider {
   if (!coinbaseProvider) {
     const sdk = new CoinbaseWalletSDK({ appName: "Haze" });
     coinbaseProvider = sdk.makeWeb3Provider() as unknown as Eip1193Provider;
@@ -158,6 +174,55 @@ export async function disconnectWallet(provider?: Eip1193Provider | null): Promi
     } catch {
       // Not implemented by most wallets yet — expected, not an error.
     }
+  }
+}
+
+function utf8ToHex(text: string): string {
+  let hex = "0x";
+  for (const byte of new TextEncoder().encode(text)) hex += byte.toString(16).padStart(2, "0");
+  return hex;
+}
+
+/**
+ * Asks `provider` to sign the standard Haze sign-in message for `address`
+ * (see src/shared/authMessage.ts) and, on a valid signature, exchanges it
+ * for a session with the server. This is a `personal_sign` — not a
+ * transaction: it costs no gas and authorizes no spend or contract call,
+ * only proves control of the address's private key.
+ *
+ * On success, POST /v1/auth/verify sets an httpOnly session cookie that
+ * every /v1/wallets/:address/* request now requires (see
+ * src/server/auth/walletAuth.ts) — this is what upgrades "an address the
+ * page happens to know" into "an address this browser has proven it
+ * controls." Returns true once that cookie is set; false if the wallet
+ * declined the signature, or the server rejected it (expired, or didn't
+ * recover to `address`).
+ */
+export async function signInWithWallet(provider: Eip1193Provider, address: string): Promise<boolean> {
+  const issuedAt = new Date().toISOString();
+  const message = buildSignInMessage(address, issuedAt);
+
+  let signature: string;
+  try {
+    signature = (await provider.request({
+      method: "personal_sign",
+      params: [utf8ToHex(message), address],
+    })) as string;
+  } catch (err) {
+    console.warn("[Haze] sign-in message declined", err);
+    return false;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/v1/auth/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address, issuedAt, signature }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn("[Haze] sign-in verification request failed", err);
+    return false;
   }
 }
 

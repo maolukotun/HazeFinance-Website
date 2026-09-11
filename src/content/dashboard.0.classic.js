@@ -107,7 +107,12 @@ async function hazeFetch(path, options) {
   const res = await fetch(HAZE_API_BASE + path, options)
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(`${path} -> ${res.status}: ${body.message || body.error || 'request failed'}`)
+    const err = new Error(`${path} -> ${res.status}: ${body.message || body.error || 'request failed'}`)
+    // Lets callers (connectRealWallet, specifically) tell "not signed in
+    // yet" (401 — see src/server/auth/walletAuth.ts) apart from every
+    // other failure, without re-parsing the message string.
+    err.status = res.status
+    throw err
   }
   return res.json()
 }
@@ -458,9 +463,13 @@ function addWalletMenuItem(menu, label, icon, onClick) {
   btn.addEventListener('click', async () => {
     closeWalletMenu()
     setWalletDisplay('Connecting…')
-    const address = await onClick()
-    if (address) {
-      await connectRealWallet(address)
+    // onClick resolves { address, provider } (not just an address) — see
+    // each call site below — because connectRealWallet needs the actual
+    // provider object afterward to ask it for a sign-in signature, not
+    // just the address it returned.
+    const result = await onClick()
+    if (result && result.address) {
+      await connectRealWallet(result.address, result.provider)
     } else {
       setWalletDisplay('Connect wallet', false)
     }
@@ -546,7 +555,15 @@ async function openWalletMenu(anchorEl) {
     return name.includes(needle) || rdns.includes(needle)
   }
 
-  addWalletMenuItem(menu, 'Coinbase Wallet', null, () => bridge.connectCoinbaseWallet())
+  // Every onClick below resolves { address, provider } rather than a bare
+  // address — see addWalletMenuItem's click handler. The provider is what
+  // lets connectRealWallet come back and ask this exact wallet for a
+  // sign-in signature afterward (see src/lib/walletProviders.ts's
+  // signInWithWallet) if it turns out one's needed.
+  addWalletMenuItem(menu, 'Coinbase Wallet', null, async () => {
+    const address = await bridge.connectCoinbaseWallet()
+    return address ? { address, provider: bridge.getCoinbaseProvider() } : null
+  })
 
   // MetaMask, same treatment as Coinbase Wallet above: always shown as its
   // own entry rather than only appearing when discoverInjectedProviders()
@@ -556,10 +573,16 @@ async function openWalletMenu(anchorEl) {
   // not installed at all, clicking sends the user to MetaMask's own
   // install page instead of silently doing nothing.
   const metamaskDetail = injected.find((detail) => isWalletNamed(detail, 'metamask'))
-  addWalletMenuItem(menu, 'MetaMask', metamaskDetail?.info.icon || null, () => {
-    if (metamaskDetail) return bridge.connectInjectedProvider(metamaskDetail)
+  addWalletMenuItem(menu, 'MetaMask', metamaskDetail?.info.icon || null, async () => {
+    if (metamaskDetail) {
+      const address = await bridge.connectInjectedProvider(metamaskDetail)
+      return address ? { address, provider: metamaskDetail.provider } : null
+    }
     const legacy = bridge.getLegacyInjectedProvider()
-    if (legacy && legacy.isMetaMask) return bridge.connectInjectedProvider()
+    if (legacy && legacy.isMetaMask) {
+      const address = await bridge.connectInjectedProvider()
+      return address ? { address, provider: legacy } : null
+    }
     bridge.openMetaMaskInstallLink()
     return null
   })
@@ -569,10 +592,17 @@ async function openWalletMenu(anchorEl) {
   )
   if (otherInjected.length > 0) {
     for (const detail of otherInjected) {
-      addWalletMenuItem(menu, detail.info.name, detail.info.icon, () => bridge.connectInjectedProvider(detail))
+      addWalletMenuItem(menu, detail.info.name, detail.info.icon, async () => {
+        const address = await bridge.connectInjectedProvider(detail)
+        return address ? { address, provider: detail.provider } : null
+      })
     }
   } else if (bridge.getLegacyInjectedProvider() && !bridge.getLegacyInjectedProvider().isMetaMask) {
-    addWalletMenuItem(menu, 'Browser wallet', null, () => bridge.connectInjectedProvider())
+    addWalletMenuItem(menu, 'Browser wallet', null, async () => {
+      const legacy = bridge.getLegacyInjectedProvider()
+      const address = await bridge.connectInjectedProvider()
+      return address ? { address, provider: legacy } : null
+    })
   }
 
   // "Sign out" — only offered when a real wallet is actually connected.
@@ -600,6 +630,14 @@ async function disconnectCurrentWallet() {
     await bridge?.disconnectWallet?.(provider)
   } catch (err) {
     console.warn('[Haze] wallet disconnect failed', err)
+  }
+  // Clears the server-side session cookie (see src/server/auth/walletAuth.ts)
+  // so a page reload right after signing out doesn't just find the
+  // still-valid cookie and skip straight past the sign-in prompt again.
+  try {
+    await hazeFetch('/v1/auth/logout', { method: 'POST' })
+  } catch (err) {
+    console.warn('[Haze] session logout failed', err)
   }
 
   currentWallet = null
@@ -646,18 +684,51 @@ function maybeShowDataGapsNotice(dataGaps) {
 // idempotent: calling it again for an already-known wallet just refreshes
 // it from fresh activity, so re-clicking the wallet indicator to
 // reconnect the same wallet doubles as a manual refresh.
-async function connectRealWallet(address) {
+async function connectRealWallet(address, provider) {
   currentWallet = address
   setWalletDisconnectedFlag(false)
   setWalletDisplay('Importing wallet…', false)
+
   let importResult
   try {
     importResult = await importWallet(address)
   } catch (err) {
-    console.error('[Haze] wallet import failed', err)
-    setWalletDisplay('Import failed — click to retry', false)
-    return
+    if (err.status !== 401) {
+      console.error('[Haze] wallet import failed', err)
+      setWalletDisplay('Import failed — click to retry', false)
+      return
+    }
+
+    // 401 means the server doesn't have a valid session for this address
+    // yet (a fresh browser, or a previous one expired — sessions last
+    // 24h, see src/server/auth/walletAuth.ts) rather than anything wrong
+    // with the import itself. Ask the wallet to prove ownership, then
+    // retry the import once. `provider` can be missing on the silent
+    // reconnect path if window.ethereum genuinely isn't there — nothing
+    // to sign with in that case, so surface it rather than looping.
+    const bridge = haze()
+    if (!provider || !bridge?.signInWithWallet) {
+      console.warn('[Haze] sign-in required but no provider available to sign with')
+      setWalletDisplay('Sign-in required — click to retry', false)
+      return
+    }
+    setWalletDisplay('Sign the message in your wallet…', false)
+    const signedIn = await bridge.signInWithWallet(provider, address)
+    if (!signedIn) {
+      setWalletDisplay('Sign-in declined — click to retry', false)
+      return
+    }
+
+    setWalletDisplay('Importing wallet…', false)
+    try {
+      importResult = await importWallet(address)
+    } catch (err2) {
+      console.error('[Haze] wallet import failed after sign-in', err2)
+      setWalletDisplay('Import failed — click to retry', false)
+      return
+    }
   }
+
   maybeShowDataGapsNotice(importResult.dataGaps)
   await getEthChainSwitchBestEffort()
   loadDashboard(currentWallet)
@@ -697,7 +768,7 @@ async function initWallet() {
   // them back in on this next load without them clicking anything.
   const silent = getWalletDisconnectedFlag() ? null : await getInjectedAccountSilently()
   if (silent) {
-    await connectRealWallet(silent)
+    await connectRealWallet(silent, haze()?.getLegacyInjectedProvider?.())
   } else {
     setWalletDisplay('Connect wallet', false)
   }
@@ -715,7 +786,7 @@ async function initWallet() {
     window.ethereum.on('accountsChanged', (accounts) => {
       if (getDevWalletOverride()) return // dev override always wins
       if (accounts[0]) {
-        connectRealWallet(accounts[0])
+        connectRealWallet(accounts[0], window.ethereum)
       } else {
         // The wallet extension itself disconnected/locked (not our
         // "Disconnect wallet" button, which already handles its own

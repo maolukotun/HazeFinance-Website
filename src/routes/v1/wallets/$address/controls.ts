@@ -2,6 +2,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CONTROL_TO_CATEGORY } from "@/server/aggregation/controlsMapping";
 import { store } from "@/server/singletons";
+import { requireWalletSession } from "@/server/auth/walletAuth";
 
 function notFoundProfile(walletAddress: string) {
   return Response.json({ error: "no_profile", message: `no profile registered for ${walletAddress}` }, { status: 404 });
@@ -16,6 +17,9 @@ export const Route = createFileRoute("/v1/wallets/$address/controls")({
     handlers: {
       POST: async ({ request, params }) => {
         const { address } = params;
+        const authError = requireWalletSession(request, address);
+        if (authError) return authError;
+
         const profile = await store.getOwnProfile(address);
         if (!profile) return notFoundProfile(address);
 
