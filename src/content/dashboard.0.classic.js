@@ -529,23 +529,43 @@ async function openWalletMenu(anchorEl) {
 
   const injected = await bridge.discoverInjectedProviders()
   menu.innerHTML = ''
-  addWalletMenuItem(menu, 'Coinbase Wallet', null, () => bridge.connectCoinbaseWallet())
-  // The Coinbase Wallet browser extension (when installed) also announces
-  // itself via EIP-6963, same as any other injected wallet — without this
-  // filter it showed up a second time in this same list, right below the
-  // "Coinbase Wallet" entry the line above already always adds via the SDK
-  // path. Anything whose name/rdns identifies it as Coinbase is skipped
-  // here so it only ever appears once.
-  const nonCoinbaseInjected = injected.filter((detail) => {
+
+  // detail.info.{name,rdns} identification helper, shared by every
+  // special-cased wallet below (Coinbase, MetaMask) so each one is only
+  // ever listed once, under its own dedicated entry, instead of also
+  // showing up a second time via the generic EIP-6963 loop further down.
+  function isWalletNamed(detail, needle) {
     const name = (detail.info?.name || '').toLowerCase()
     const rdns = (detail.info?.rdns || '').toLowerCase()
-    return !name.includes('coinbase') && !rdns.includes('coinbase')
+    return name.includes(needle) || rdns.includes(needle)
+  }
+
+  addWalletMenuItem(menu, 'Coinbase Wallet', null, () => bridge.connectCoinbaseWallet())
+
+  // MetaMask, same treatment as Coinbase Wallet above: always shown as its
+  // own entry rather than only appearing when discoverInjectedProviders()
+  // happens to find it. If the extension IS installed and announced itself
+  // via EIP-6963 (or, failing that, identifies itself the older way via
+  // window.ethereum.isMetaMask), clicking connects to it directly; if it's
+  // not installed at all, clicking sends the user to MetaMask's own
+  // install page instead of silently doing nothing.
+  const metamaskDetail = injected.find((detail) => isWalletNamed(detail, 'metamask'))
+  addWalletMenuItem(menu, 'MetaMask', metamaskDetail?.info.icon || null, () => {
+    if (metamaskDetail) return bridge.connectInjectedProvider(metamaskDetail)
+    const legacy = bridge.getLegacyInjectedProvider()
+    if (legacy && legacy.isMetaMask) return bridge.connectInjectedProvider()
+    bridge.openMetaMaskInstallLink()
+    return null
   })
-  if (nonCoinbaseInjected.length > 0) {
-    for (const detail of nonCoinbaseInjected) {
+
+  const otherInjected = injected.filter(
+    (detail) => !isWalletNamed(detail, 'coinbase') && !isWalletNamed(detail, 'metamask'),
+  )
+  if (otherInjected.length > 0) {
+    for (const detail of otherInjected) {
       addWalletMenuItem(menu, detail.info.name, detail.info.icon, () => bridge.connectInjectedProvider(detail))
     }
-  } else if (bridge.getLegacyInjectedProvider()) {
+  } else if (bridge.getLegacyInjectedProvider() && !bridge.getLegacyInjectedProvider().isMetaMask) {
     addWalletMenuItem(menu, 'Browser wallet', null, () => bridge.connectInjectedProvider())
   }
 

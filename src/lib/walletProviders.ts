@@ -80,6 +80,20 @@ export function getLegacyInjectedProvider(): Eip1193Provider | null {
   return eth ?? null;
 }
 
+/**
+ * Sends the user to MetaMask's own install page in a new tab. Used by the
+ * dashboard's wallet menu when its dedicated "MetaMask" entry is clicked
+ * but no MetaMask provider was actually found (neither via EIP-6963 nor
+ * the legacy `window.ethereum.isMetaMask` check) — i.e. it isn't
+ * installed. Unlike Coinbase Wallet, MetaMask has no SDK-provided
+ * QR-code/mobile fallback wired up here, so "not installed" has to lead
+ * somewhere rather than the button silently doing nothing.
+ */
+export function openMetaMaskInstallLink(): void {
+  if (typeof window === "undefined") return;
+  window.open("https://metamask.io/download/", "_blank", "noopener,noreferrer");
+}
+
 async function requestFirstAccount(provider: Eip1193Provider): Promise<string | null> {
   const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
   return accounts?.[0] ?? null;
