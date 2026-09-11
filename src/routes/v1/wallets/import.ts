@@ -64,11 +64,14 @@ export const Route = createFileRoute("/v1/wallets/import")({
         }
 
         // TEMPORARY DIAGNOSTIC — narrows down a live 500 on this route.
-        // Do not leave this shipped: it exposes internal error detail on a
-        // route with no auth. Remove once the root cause is fixed.
-        let alreadyRegistered: boolean;
+        // Wraps everything from here to the response, not just the
+        // register/refresh call, since the first (narrower) version of
+        // this diagnostic never actually caught anything — the 500 was
+        // still happening somewhere after it. Do not leave this shipped:
+        // it exposes internal error detail on a route with no auth.
+        // Remove once the root cause is fixed.
         try {
-          alreadyRegistered = (await store.getOwnProfile(address)) !== null;
+          const alreadyRegistered = (await store.getOwnProfile(address)) !== null;
           if (alreadyRegistered) {
             await store.refreshFromActivity(address, indexed.raw);
           } else {
@@ -77,6 +80,27 @@ export const Route = createFileRoute("/v1/wallets/import")({
             // doc comment for why that flag matters.
             await store.registerWallet(indexed.raw, [], { synthetic: false });
           }
+
+          const profile = await store.getOwnProfile(address);
+          if (!profile) {
+            return Response.json(
+              { status: "error", debugMessage: `getOwnProfile(${address}) returned null right after register/refresh` },
+              { status: 200 },
+            );
+          }
+          const visibleFingerprint = applyExclusions(profile.fingerprint, profile.excludedCategories);
+
+          return Response.json({
+            walletAddress: address,
+            imported: !alreadyRegistered,
+            refreshed: alreadyRegistered,
+            profileStrength: profileStrength(profile.weight),
+            fingerprint: visibleFingerprint,
+            fingerprintBars: fingerprintBarPercentages(visibleFingerprint, { synthetic: profile.synthetic }),
+            excludedCategories: profile.excludedCategories,
+            dataGaps: indexed.dataGaps,
+            sourcedFrom: indexed.sourcedFrom,
+          });
         } catch (err) {
           return Response.json(
             {
@@ -88,21 +112,6 @@ export const Route = createFileRoute("/v1/wallets/import")({
             { status: 200 },
           );
         }
-
-        const profile = (await store.getOwnProfile(address))!;
-        const visibleFingerprint = applyExclusions(profile.fingerprint, profile.excludedCategories);
-
-        return Response.json({
-          walletAddress: address,
-          imported: !alreadyRegistered,
-          refreshed: alreadyRegistered,
-          profileStrength: profileStrength(profile.weight),
-          fingerprint: visibleFingerprint,
-          fingerprintBars: fingerprintBarPercentages(visibleFingerprint, { synthetic: profile.synthetic }),
-          excludedCategories: profile.excludedCategories,
-          dataGaps: indexed.dataGaps,
-          sourcedFrom: indexed.sourcedFrom,
-        });
       },
     },
   },
