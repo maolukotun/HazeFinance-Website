@@ -87,17 +87,45 @@ console.log(
 // see indexer/syntheticIndexer.ts), so seedSyntheticWallet() is a safe,
 // idempotent no-op past the first time on the Postgres path: every
 // instance/cold-start converges on the same seeded rows instead of
-// erroring on conflict or duplicating them.
+// erroring on conflict or duplicating them. And on the Postgres path,
+// seeding is effectively a ONE-TIME database bootstrap, not a per-instance
+// necessity — once any instance's seed loop finishes, the rows exist in
+// Postgres for good, and every other instance's plain SELECTs find them
+// immediately regardless of whether that instance's own copy of this
+// loop has completed.
 //
-// Top-level await is intentional and safe here: this module is
-// server-only (imported only from src/routes/**, never bundled for the
-// browser), and every route handler that reads `store`/`splitterSim`/
-// `activityLog` already awaits an async import of this module implicitly
-// by importing it at all — so seeding is guaranteed to finish before any
-// handler can run, on both the in-memory and Postgres backends.
-for (const wallet of generateSyntheticWallets(SEED_WALLET_COUNT)) {
-  await store.seedSyntheticWallet(wallet);
+// Deliberately NOT a blocking top-level `await`, and wrapped in try/catch
+// so it can never throw during module evaluation. This module
+// (singletons.ts) is imported — transitively, via routeTree.gen.ts, which
+// eagerly imports every route file to build the route tree — by every
+// single route in the app, including ones with nothing to do with
+// wallets. An earlier version of this code DID block module evaluation on
+// this loop with a top-level `await`, and a rejected promise there (e.g.
+// a Postgres connection hiccup) took down every route in the entire app,
+// homepage included, not just the wallet endpoints that actually touch
+// the database — reproduced live on tryhazefi.com after wiring in
+// Postgres. A regular per-request error (thrown from inside a route
+// handler after the module has already loaded successfully) is already
+// caught by src/start.ts's errorMiddleware and only fails that one
+// request — this is specifically about avoiding a failure at import time,
+// before any handler even exists to catch anything.
+let seedingDone: Promise<void> | null = null;
+function ensureSeeded(): Promise<void> {
+  if (!seedingDone) {
+    seedingDone = (async () => {
+      for (const wallet of generateSyntheticWallets(SEED_WALLET_COUNT)) {
+        await store.seedSyntheticWallet(wallet);
+      }
+    })().catch((err: unknown) => {
+      console.error(
+        "[haze] seeding synthetic demo wallets failed — devWallet= links and the dashboard's demo data may be missing until this succeeds (will retry on next cold start):",
+        err,
+      );
+    });
+  }
+  return seedingDone;
 }
+void ensureSeeded();
 
 if (process.env["NODE_ENV"] !== "production") {
   // Dev-only convenience: simulate query traffic every couple of seconds
@@ -121,13 +149,15 @@ if (process.env["NODE_ENV"] !== "production") {
       ][Math.floor(Math.random() * 4)]!;
       const matching = await store.getMatchingWallets(sampleFilters);
       await activityLog.record(matching, amount, sampleFilters);
-    })();
+    })().catch((err: unknown) => console.error("[haze] dev traffic simulation tick failed", err));
   }, 2000);
 
-  const firstWallet = (await store.getSyncSnapshot())[0]?.walletAddress;
-  if (firstWallet) {
-    console.log(
-      `[haze] seeded ${await store.size()} synthetic profiles. Try this address in the dashboard's dev wallet override:\n  ?devWallet=${firstWallet}`,
-    );
-  }
+  void ensureSeeded().then(async () => {
+    const firstWallet = (await store.getSyncSnapshot())[0]?.walletAddress;
+    if (firstWallet) {
+      console.log(
+        `[haze] seeded ${await store.size()} synthetic profiles. Try this address in the dashboard's dev wallet override:\n  ?devWallet=${firstWallet}`,
+      );
+    }
+  });
 }
