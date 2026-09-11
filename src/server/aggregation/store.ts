@@ -15,6 +15,33 @@ import type { AnonymizedProfile, BehavioralFingerprint, InternalProfileRecord, Q
  */
 export const K_ANONYMITY_MIN = 5;
 
+/**
+ * Defensive decoder for the two JSONB columns on wallet_profiles
+ * (fingerprint, excluded_categories). postgres.js is supposed to
+ * auto-decode json/jsonb columns into real objects/arrays based on the
+ * column's Postgres type, so this SHOULD always hit the `return value`
+ * branch below — but it's cheap insurance, and it's exactly the kind of
+ * gap that turned into a real production crash: the first real (not
+ * synthetic-seeded) wallet import to actually reach this code path after
+ * the postgres.js migration hit `TypeError: Cannot read properties of
+ * undefined (reading 'rotatesStockGainsIntoCrypto')` in
+ * fingerprintBarPercentages(), which only makes sense if the fingerprint
+ * that came back out of Postgres wasn't the parsed object it should have
+ * been. Handling a raw JSON string here — in addition to an
+ * already-parsed value — closes that gap regardless of which layer
+ * turned out to be responsible for it.
+ */
+function parseJsonbColumn<T>(value: unknown, fallback: T): T {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value == null ? fallback : (value as T);
+}
+
 export type QueryCohortResult =
   | { ok: true; profiles: AnonymizedProfile[] }
   | { ok: false; reason: "cohort_too_small"; minimumRequired: number };
@@ -281,9 +308,9 @@ export class ProfileStore {
       const row = result.rows[0];
       if (!row) return null;
       return {
-        fingerprint: row["fingerprint"] as BehavioralFingerprint,
+        fingerprint: parseJsonbColumn<BehavioralFingerprint>(row["fingerprint"], {} as BehavioralFingerprint),
         weight: row["weight"] as number,
-        excludedCategories: row["excluded_categories"] as string[],
+        excludedCategories: parseJsonbColumn<string[]>(row["excluded_categories"], []),
         synthetic: row["synthetic"] as boolean,
       };
     }
@@ -350,8 +377,8 @@ export class ProfileStore {
       return result.rows.map((r) => ({
         walletAddress: r["wallet_address"] as string,
         profileId: r["profile_id"] as string,
-        fingerprint: r["fingerprint"] as BehavioralFingerprint,
-        excludedCategories: r["excluded_categories"] as string[],
+        fingerprint: parseJsonbColumn<BehavioralFingerprint>(r["fingerprint"], {} as BehavioralFingerprint),
+        excludedCategories: parseJsonbColumn<string[]>(r["excluded_categories"], []),
       }));
     }
     const all = [...this.#memRecords.values()];
@@ -373,8 +400,12 @@ function matchesFilters(fingerprint: BehavioralFingerprint, filters: QueryFilter
 
   if (filters.requireCrossAssetActivity) {
     const c = fingerprint.crossAssetBehavior;
-    const hasCrossAssetActivity =
-      c.rotatesStockGainsIntoCrypto || c.rotatesCryptoGainsIntoStock || c.usesMorphoForStockCollateralLeverage;
+    // Same defensive guard as scoring.ts's fingerprintBarPercentages — see
+    // its comment. Treat a missing crossAssetBehavior as "no signal"
+    // rather than crashing the whole query.
+    const hasCrossAssetActivity = Boolean(
+      c && (c.rotatesStockGainsIntoCrypto || c.rotatesCryptoGainsIntoStock || c.usesMorphoForStockCollateralLeverage),
+    );
     if (!hasCrossAssetActivity) return false;
   }
 

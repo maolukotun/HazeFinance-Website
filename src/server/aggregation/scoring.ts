@@ -57,12 +57,22 @@ export function fingerprintBarPercentages(
       synthetic && fingerprint.equityBehavior
         ? Math.min(100, 50 + fingerprint.equityBehavior.sectorPreferences.length * 15)
         : 0,
-    crossAssetBehavior:
-      [
-        fingerprint.crossAssetBehavior.rotatesStockGainsIntoCrypto,
-        fingerprint.crossAssetBehavior.rotatesCryptoGainsIntoStock,
-        fingerprint.crossAssetBehavior.usesMorphoForStockCollateralLeverage,
-      ].filter(Boolean).length * 33,
+    // Unlike defiUsage/equityBehavior/reactivity above, crossAssetBehavior
+    // isn't a user-excludable category (see privacyLayer.ts's
+    // applyExclusions — it's not one of the switch cases), so it's not
+    // supposed to ever be null/undefined here. Guarded anyway: a
+    // fingerprint arriving with this field missing for any other reason
+    // (a stale row shape, a storage-layer bug) should degrade to "no
+    // signal" (0), the same way the other three fields already do,
+    // instead of crashing the whole request with a TypeError — that
+    // crash reached production once already.
+    crossAssetBehavior: fingerprint.crossAssetBehavior
+      ? [
+          fingerprint.crossAssetBehavior.rotatesStockGainsIntoCrypto,
+          fingerprint.crossAssetBehavior.rotatesCryptoGainsIntoStock,
+          fingerprint.crossAssetBehavior.usesMorphoForStockCollateralLeverage,
+        ].filter(Boolean).length * 33
+      : 0,
     reactivity:
       synthetic && fingerprint.reactivity
         ? Math.max(10, 100 - fingerprint.reactivity.avgResponseTimeToMarketMoveMinutes / 3)
