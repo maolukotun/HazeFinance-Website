@@ -499,18 +499,24 @@ async function openWalletMenu(anchorEl) {
   const rect = anchorEl.getBoundingClientRect()
   menu.style.left = `${Math.round(Math.min(rect.left, window.innerWidth - 216))}px`
 
-  // The wallet indicator lives at the bottom of the sidebar on desktop, so
-  // opening the menu downward (the old default) pushed most of it off the
-  // bottom of the window — the "Disconnect wallet" item especially was
-  // never reachable. Open upward (anchored above the button, growing
-  // toward the top of the screen) whenever there isn't comfortably enough
-  // room below the button for the menu's contents; a rough ceiling on menu
-  // height (up to ~5 wallet entries plus the divider + disconnect row)
-  // is good enough here since this is just picking a direction, not laying
-  // out anything pixel-precise.
+  // Desktop and mobile trigger this same menu from two different elements
+  // that sit at opposite ends of the screen (see dashboard.html):
+  // "sidebarAddr" at the BOTTOM of the desktop sidebar, and "topbarAddr" in
+  // the mobile topbar, which is pinned to the very TOP of the screen
+  // (`.topbar{position:sticky;top:0}`). Opening the menu downward
+  // unconditionally (the original behavior) pushed it off the bottom of
+  // the window for the desktop sidebar trigger — the "Disconnect wallet"
+  // item especially was never reachable — so it now opens upward there
+  // whenever there isn't comfortably enough room below the button. But
+  // that same upward logic is wrong for the mobile topbar trigger: it sits
+  // near y=0, so there's almost no room ABOVE it — opening upward there
+  // pushes the menu off the TOP of the screen instead. So the direction
+  // check only runs for the sidebar trigger; the topbar trigger always
+  // opens downward, where it already has the whole screen to work with.
   const spaceBelow = window.innerHeight - rect.bottom
-  const MENU_MAX_HEIGHT_ESTIMATE = 260
-  if (spaceBelow < MENU_MAX_HEIGHT_ESTIMATE) {
+  const MENU_MAX_HEIGHT_ESTIMATE = 260 // rough ceiling: ~5 wallet entries plus the divider + disconnect row
+  const anchoredAtScreenBottom = anchorEl.id === 'sidebarAddr'
+  if (anchoredAtScreenBottom && spaceBelow < MENU_MAX_HEIGHT_ESTIMATE) {
     menu.style.bottom = `${Math.round(window.innerHeight - rect.top + 8)}px`
   } else {
     menu.style.top = `${Math.round(rect.bottom + 8)}px`
