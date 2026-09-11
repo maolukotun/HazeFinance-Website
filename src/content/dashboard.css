@@ -40,10 +40,20 @@ html,body{height:100%;background:var(--bg);font-family:'Geist',system-ui,sans-se
 @media(min-width:640px){.topbar{padding:16px 24px}}
 @media(min-width:1024px){.topbar{display:none}}
 .topbar .brand{font-size:17px;font-weight:600;letter-spacing:-0.02em}
-.topbar-right{display:flex;align-items:center;gap:12px}
-.topbar-wallet{font-family:var(--mono);font-size:11px;color:var(--text3);background:rgba(255,255,255,0.03);border:1px solid var(--border);padding:6px 10px;border-radius:6px;display:none}
-@media(min-width:640px){.topbar-wallet{display:block}}
-.topbar-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.topbar-right{display:flex;align-items:center;gap:12px;min-width:0}
+/* This chip is the ONLY way to open the wallet-connect menu on mobile —
+   there's no separate "connect wallet" entry in the bottom nav. It used to
+   be display:none below 640px CSS width, which is narrower than nearly
+   every phone's PORTRAIT width (most are 360-430px; the 640px breakpoint
+   only gets crossed once you rotate into landscape) — so on a real phone
+   held upright, this button didn't exist at all: not hidden-but-tappable,
+   genuinely absent from layout and unclickable. Always shown now; the
+   max-width + ellipsis below is what keeps a long status string like
+   "Import failed — click to retry" from overflowing a ~360px-wide
+   screen instead of the display:none this used to lean on. */
+.topbar-wallet{font-family:var(--mono);font-size:11px;color:var(--text3);background:rgba(255,255,255,0.03);border:1px solid var(--border);padding:6px 10px;border-radius:6px;display:block;max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(min-width:640px){.topbar-wallet{max-width:none}}
+.topbar-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
 
 /* --- BOTTOM NAV (mobile) --- */
 .bottomnav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:20;padding:6px 0;padding-bottom:max(6px,env(safe-area-inset-bottom))}
