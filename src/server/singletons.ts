@@ -18,11 +18,15 @@
  * import succeeded, then five straight profile reads all 404'd.
  *
  * To fix this on your Vercel project: Project -> Storage -> Create
- * Database -> Postgres (this provisions via the Neon integration and
- * auto-injects POSTGRES_URL and friends as env vars — nothing to copy by
- * hand). Every table is created lazily on first query, so there's no
- * separate migration step. Redeploy (or just wait for the next cold
- * start) once it's attached.
+ * Database -> Postgres (or attach the Supabase marketplace integration —
+ * this project's actual database), which auto-injects POSTGRES_URL and
+ * friends as env vars — nothing to copy by hand. Every table is created
+ * lazily on first query, so there's no separate migration step. Redeploy
+ * (or just wait for the next cold start) once it's attached. See
+ * src/server/db/client.ts's module comment for why the query client is
+ * `postgres` (postgres.js) rather than `@vercel/postgres` — short version:
+ * this database is Supabase-hosted, and `@vercel/postgres`'s transport
+ * only works against Neon.
  *
  * With NO Postgres attached (the default for local `npm run dev`, and
  * for a Vercel project that hasn't added the Storage integration yet),

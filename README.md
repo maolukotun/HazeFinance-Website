@@ -112,9 +112,14 @@ carries over unchanged by the merge, and matters more now, not less:
    `ProfileStore`, `SplitterSimulator`, and `ActivityLog`
    (`src/server/singletons.ts`) now read and write Postgres
    (`src/server/db/client.ts`) whenever a connection string is present —
-   attach one via Project → Storage → Create Database → Postgres and
-   every table is created automatically on first query, no migration
-   step to run. This was a real, reproduced bug, not a theoretical one:
+   attach one via Project → Storage → Create Database → Postgres (or the
+   Supabase marketplace integration — this project's database is
+   Supabase-hosted) and every table is created automatically on first
+   query, no migration step to run. The query client is `postgres`
+   (postgres.js), a standard TCP Postgres client — not `@vercel/postgres`,
+   whose transport only works against Neon; see `src/server/db/client.ts`'s
+   module comment for the full story if this ever needs revisiting. This
+   was a real, reproduced bug, not a theoretical one:
    on the in-memory version, a wallet registered via `POST
    /v1/wallets/import` on one Vercel Function instance was invisible to
    a `GET .../profile` that happened to land on a different (or later,
